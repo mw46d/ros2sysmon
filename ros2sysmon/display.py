@@ -29,7 +29,7 @@ class DisplayManager:
             self.layout, 
             console=self.console, 
             refresh_per_second=1/self.config.refresh_rate,
-            screen=True
+            screen=True  # Full screen mode
         ) as live:
             try:
                 while True:
@@ -43,7 +43,7 @@ class DisplayManager:
         layout = Layout()
         
         layout.split_column(
-            Layout(name="header", size=5),
+            Layout(name="header", size=8),  # Increased from 5 to 8 for more system info
             Layout(name="body"),
             Layout(name="alerts", size=4)
         )
@@ -80,35 +80,54 @@ class DisplayManager:
         )
     
     def _create_system_overview(self, metrics: Optional[SystemMetrics]) -> Panel:
-        """Create the system overview panel with progress bars."""
+        """Create the system overview panel with progress bars in two columns."""
         if not metrics:
             return Panel("Loading system metrics...", title="System Resources", border_style="blue")
         
-        # Create simple text-based progress bars for now
-        def make_progress_bar(value: float, width: int = 20) -> str:
+        # Create simple text-based progress bars
+        def make_progress_bar(value: float, width: int = 15) -> str:
             filled = int(value * width / 100)
             bar = "█" * filled + "░" * (width - filled)
             return f"[{bar}] {value:5.1f}%"
         
-        # Build content with text progress bars
-        content_lines = [
+        # Build left and right columns manually with string formatting
+        left_col_width = 35  # Space for progress bars
+        right_col = []
+        
+        # Left column data
+        left_data = [
             f"CPU:    {make_progress_bar(metrics.cpu_percent)}",
             f"Memory: {make_progress_bar(metrics.memory_percent)}",
-            f"Disk:   {make_progress_bar(metrics.disk_percent)}",
-            "",
+            f"Disk:   {make_progress_bar(metrics.disk_percent)}"
+        ]
+        
+        # Right column data
+        right_data = [
             f"Load: {metrics.load_average[0]:.2f}  Uptime: {metrics.uptime}"
         ]
         
         if metrics.temperature:
-            content_lines.append(f"Temperature: {metrics.temperature:.1f}°C")
+            right_data.append(f"Temperature: {metrics.temperature:.1f}°C")
             
         if metrics.network_latency is not None:
-            content_lines.append(f"Network: {metrics.network_latency:.1f}ms")
+            right_data.append(f"Network: {metrics.network_latency:.1f}ms")
         else:
-            content_lines.append("Network: checking...")
+            right_data.append("Network: checking...")
             
         if metrics.battery_percent:
-            content_lines.append(f"Battery: {metrics.battery_percent:.1f}%")
+            right_data.append(f"Battery: {metrics.battery_percent:.1f}%")
+        
+        # Combine into two-column format
+        content_lines = []
+        max_lines = max(len(left_data), len(right_data))
+        
+        for i in range(max_lines):
+            left_part = left_data[i] if i < len(left_data) else ""
+            right_part = right_data[i] if i < len(right_data) else ""
+            
+            # Format as two columns
+            line = f"{left_part:<{left_col_width}} | {right_part}"
+            content_lines.append(line)
         
         return Panel(
             "\n".join(content_lines),
