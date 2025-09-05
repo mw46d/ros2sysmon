@@ -4,7 +4,7 @@ import time
 import os
 import threading
 from ament_index_python.packages import get_package_share_directory
-from .config import ConfigManager
+from .config_manager import ConfigManager
 from .data_manager import DataCollectionManager
 from .display import DisplayManager
 
@@ -21,7 +21,7 @@ def main():
         default_config = "config/default_config.yaml"
     
     parser.add_argument("--config", default=default_config)
-    parser.add_argument("--refresh-rate", type=float, default=1.0)
+    parser.add_argument("--refresh-rate", type=float, default=5.0)
     parser.add_argument("--no-color", action="store_true")
     args = parser.parse_args()
     

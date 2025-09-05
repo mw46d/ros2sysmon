@@ -10,7 +10,8 @@ from rich.text import Text
 from datetime import datetime
 from typing import List, Optional
 from .shared_data import SharedDataStore
-from .models import SystemMetrics, SystemAlert
+from .system_metrics import SystemMetrics
+from .system_alert import SystemAlert
 from .config import Config
 
 

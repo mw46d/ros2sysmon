@@ -1,5 +1,5 @@
 # Refresh and display settings
-refresh_rate: 1.0  # seconds
+refresh_rate: 5.0  # seconds
 max_alerts: 10
 max_nodes_display: 15
 max_topics_display: 10

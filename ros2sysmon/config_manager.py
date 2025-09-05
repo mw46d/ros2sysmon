@@ -1,0 +1,41 @@
+"""Configuration loading and management."""
+import yaml
+from .config import Config
+from .threshold_config import ThresholdConfig
+from .topic_config import TopicConfig
+from .ros_config import ROSConfig
+from .display_config import DisplayConfig
+
+
+class ConfigManager:
+    """Configuration loading and management."""
+    
+    @staticmethod
+    def load_config(config_path: str) -> Config:
+        """Load configuration from YAML file - let it crash if bad."""
+        with open(config_path, 'r') as f:
+            config_data = yaml.safe_load(f)
+        
+        # Parse thresholds
+        thresholds = ThresholdConfig(**config_data['thresholds'])
+        
+        # Parse ROS config
+        topics = [TopicConfig(**topic) for topic in config_data['ros']['critical_topics']]
+        ros_config = ROSConfig(
+            critical_topics=topics,
+            node_patterns=config_data['ros']['node_patterns']
+        )
+        
+        # Parse display config
+        display = DisplayConfig(**config_data['display'])
+        
+        # Create main config
+        return Config(
+            refresh_rate=config_data['refresh_rate'],
+            max_alerts=config_data['max_alerts'],
+            max_nodes_display=config_data['max_nodes_display'],
+            max_topics_display=config_data['max_topics_display'],
+            thresholds=thresholds,
+            ros=ros_config,
+            display=display
+        )

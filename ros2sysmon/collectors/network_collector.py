@@ -5,7 +5,7 @@ import subprocess
 import re
 from datetime import datetime
 from typing import Optional
-from ..models import SystemAlert
+from ..system_alert import SystemAlert
 from ..shared_data import SharedDataStore
 from ..config import Config
 
