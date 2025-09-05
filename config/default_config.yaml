@@ -1,0 +1,43 @@
+# Refresh and display settings
+refresh_rate: 1.0  # seconds
+max_alerts: 10
+max_nodes_display: 15
+max_topics_display: 10
+
+# System thresholds
+thresholds:
+  cpu_warn: 70.0
+  cpu_error: 85.0
+  memory_warn: 75.0
+  memory_error: 90.0
+  disk_warn: 80.0
+  disk_error: 95.0
+  temperature_warn: 70.0
+  temperature_error: 85.0
+  network_latency_warn: 100  # ms
+  network_latency_error: 500
+
+# ROS2 specific settings
+ros:
+  critical_topics:
+    - name: "/tf"
+      target_frequency: 30.0
+    - name: "/tf_static"
+      target_frequency: 1.0
+    - name: "/scan"
+      target_frequency: 20.0
+    - name: "/camera/image_raw"
+      target_frequency: 10.0
+    - name: "/cmd_vel"
+      target_frequency: 1.0
+  
+  node_patterns:
+    ignore:
+      - "/_ros2cli_*"
+      - "/launch_ros_*"
+
+# Display preferences
+display:
+  show_colors: true
+  show_progress_bars: true
+  time_format: "%H:%M:%S"

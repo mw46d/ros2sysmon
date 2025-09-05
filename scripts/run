@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+"""Alternative ros2sysmon executable."""
+from ros2sysmon.main import main
+
+if __name__ == "__main__":
+    main()
