@@ -4,8 +4,7 @@ import threading
 import psutil
 from datetime import datetime
 from typing import Optional
-from ..system_metrics import SystemMetrics
-from ..system_alert import SystemAlert
+from ..data_models import SystemMetrics, SystemAlert
 from ..shared_data import SharedDataStore
 from ..config import Config
 

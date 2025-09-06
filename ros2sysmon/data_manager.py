@@ -4,6 +4,7 @@ from typing import List
 from .shared_data import SharedDataStore
 from .collectors.system_collector import SystemCollector
 from .collectors.network_collector import NetworkCollector
+from .collectors.ros_collector import ROSCollector
 from .config import Config
 
 
@@ -21,7 +22,8 @@ class DataCollectionManager:
         # Initialize collectors
         self.collectors = [
             SystemCollector(config),
-            NetworkCollector(config)
+            NetworkCollector(config),
+            ROSCollector(config)
         ]
     
     def start_collection(self):

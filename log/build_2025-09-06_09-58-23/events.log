@@ -1,0 +1,3 @@
+[0.000000] (-) TimerEvent: {}
+[0.001242] (-) JobUnselected: {'identifier': 'ros2sysmon'}
+[0.003477] (-) EventReactorShutdown: {}

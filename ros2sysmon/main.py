@@ -3,10 +3,11 @@ import argparse
 import time
 import os
 import threading
+import rclpy
 from ament_index_python.packages import get_package_share_directory
 from .config_manager import ConfigManager
 from .data_manager import DataCollectionManager
-from .display import DisplayManager
+from .display_manager import DisplayManager
 
 
 def main():
@@ -28,6 +29,9 @@ def main():
     print(f"ros2top starting...")
     print(f"Using config: {args.config}")
     
+    # Initialize ROS2 
+    rclpy.init()
+    
     # Load configuration - let it crash if bad
     config = ConfigManager.load_config(args.config)
     config.refresh_rate = args.refresh_rate
@@ -48,6 +52,7 @@ def main():
     finally:
         # Cleanup
         data_manager.stop_collection()
+        rclpy.shutdown()
 
 
 if __name__ == "__main__":

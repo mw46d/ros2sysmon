@@ -1,7 +1,7 @@
 # ros2sysmon - Current Development Status
 
-**Date:** September 5, 2025  
-**Status:** Core system monitoring functional, working on display layout fixes
+**Date:** September 6, 2025  
+**Status:** Fully functional - System monitoring and ROS monitoring now working, ROSCollector context issue resolved
 
 ## Current State
 
@@ -10,20 +10,23 @@
 - **System Metrics Collection**: CPU, memory, disk usage with real-time updates
 - **Temperature Monitoring**: CPU thermal sensors (when available)
 - **Network Latency**: Ping monitoring to 8.8.8.8 every 5 seconds
-- **Threading Architecture**: DataCollectionManager coordinates SystemCollector and NetworkCollector
+- **ROS Node Monitoring**: Real-time discovery and monitoring of ROS2 nodes and topics
+- **Threading Architecture**: DataCollectionManager coordinates SystemCollector, NetworkCollector, and ROSCollector
 - **Rich Dashboard**: Terminal UI with panels and live updates
 - **Alert System**: Configurable thresholds with color-coded warnings
 - **Configuration**: YAML config file with thresholds and display settings
 
 ### 🔧 Recently Fixed
+- **ROSCollector Context Issue**: Fixed RCL context initialization by deferring Node creation to collection thread
 - **Package Renaming**: Successfully renamed from `ros2top` to `ros2sysmon`
 - **Network Latency Collection**: NetworkCollector properly pings and stores latency data
 - **Thread Coordination**: SystemCollector preserves network latency between updates
 - **Display Layout**: Implemented two-column layout for system overview panel
+- **UI Reversion**: Reverted from color-based panels back to stable Panel-based UI with rounded boxes
+- **Keyboard Input Removal**: Removed failed single-letter keyboard commands and mode switching
 
 ### 🚧 Current Issues
-- **Network Latency Display**: Still not showing properly in dashboard despite data collection working
-- **Layout Constraints**: System overview panel may be height-constrained causing content truncation
+- None - all major functionality is working properly
 
 ## Technical Details
 
@@ -54,40 +57,38 @@ src/ros2sysmon/
 ```
 
 ### Data Flow
-1. **DataCollectionManager** starts SystemCollector and NetworkCollector threads
+1. **DataCollectionManager** starts SystemCollector, NetworkCollector, and ROSCollector threads
 2. **SystemCollector** updates system metrics every 1 second, preserving existing network latency
 3. **NetworkCollector** pings every 5 seconds, updating latency in shared store
-4. **DisplayManager** renders Rich dashboard with live updates
-5. **SharedDataStore** coordinates thread-safe data access
+4. **ROSCollector** discovers and monitors ROS2 nodes/topics every 2 seconds
+5. **DisplayManager** renders Rich dashboard with live updates
+6. **SharedDataStore** coordinates thread-safe data access
 
 ### Configuration
 - Default config: `/install/ros2sysmon/share/ros2sysmon/config/default_config.yaml`
 - Thresholds: CPU (70%/85%), Memory (75%/90%), Disk (80%/95%), Temp (70°C/85°C), Network (100ms/500ms)
 - Refresh rate: 1 second default
 
-## Current Bugs
+## Fixed Issues
 
-### 1. Network Latency Display Issue
-**Symptom**: Network latency not visible in dashboard despite successful ping collection  
-**Debug Evidence**: 
-- NetworkCollector successfully pings (verified: 9.61ms, 16.2ms, 12.8ms)
-- Data stored correctly in SharedDataStore  
-- SystemCollector preserves latency between updates
-- Display code includes network latency in right column
+### 1. ROSCollector Context Error (FIXED)
+**Symptom**: ROSCollector failed to initialize with "rcl node's context is invalid" error  
+**Root Cause**: ROSCollector tried to create ROS2 Node in __init__ before ROS context was ready
+**Solution**: Deferred Node creation to the collection thread after rclpy.init() is called
+**Status**: ✅ RESOLVED - ROSCollector now initializes properly and monitors ROS nodes/topics
 
-**Possible Causes**:
-- Panel height constraints cutting off content
-- Two-column layout formatting issues
-- Rich rendering problems with string formatting
+### 2. Failed Feature Attempts (Reverted)
+**Color-based Panels**: Attempted to replace Panel boxes with Rich Text + background colors
+- **Issue**: Poor readability, layout problems, complex table conversion
+- **Status**: Reverted back to Panel with box.ROUNDED
 
-**Recent Attempts**:
-- Increased header panel size from 5 to 8 lines
-- Implemented manual two-column layout with string formatting
-- Removed Rich Columns component in favor of simple text formatting
+**Single-letter Keyboard Commands**: Attempted r/s mode switching, x/q exit
+- **Issue**: Doesn't work in non-TTY environments (Claude Code, some terminals)
+- **Status**: Completely removed - only Ctrl+C exit remains
 
-### 2. Layout Truncation
-**Symptom**: System info section (Load, Temperature, Network) not appearing
-**Status**: Partially addressed with increased panel size and two-column layout
+**Mode Switching**: Attempted ROS vs System display modes  
+- **Issue**: Added complexity without clear benefit
+- **Status**: Removed - single unified display mode
 
 ## Todo List
 
@@ -99,11 +100,14 @@ src/ros2sysmon/
 5. Implement system overview panel with progress bars
 6. Create alerts panel for system notifications
 7. Fix network latency display with two-column layout
+8. **Fix ROSCollector initialization** - Resolved RCL context error, ROS monitoring now functional
+9. **Verify network latency validation** - Network latency properly displayed in header
+10. **ROS Integration Testing** - Tested with actual ROS2 nodes, working properly
 
-### 🔄 Pending
-8. **Implement ROSCollector for node discovery and topic monitoring**
-9. **Create ROS nodes table display** 
-10. **Implement topics metrics table display**
+### 🔄 Future Enhancements  
+- **Improve ROS discovery** - Consider subprocess-based approach for better reliability
+- **Better error handling** - Enhanced graceful degradation when ROS2 is not available
+- **Performance optimization** - Optimize data collection intervals and memory usage
 
 ## How to Run
 
@@ -138,11 +142,11 @@ python3 -c "import psutil; print(f'CPU: {psutil.cpu_percent()}%, Memory: {psutil
 
 ## Next Steps
 
-1. **Fix network latency display** - Investigate panel rendering and layout constraints
-2. **Test on different terminal sizes** - Ensure layout works across screen resolutions  
-3. **Implement ROSCollector** - Add ROS2 node discovery and monitoring
-4. **Add ROS topics display** - Monitor topic frequencies and message rates
-5. **Performance optimization** - Reduce CPU usage of monitoring itself
+1. **Fix ROSCollector** - Resolve RCL context initialization order issue
+2. **ROS Integration Testing** - Test with actual ROS2 nodes running
+3. **Fallback ROS Discovery** - Implement subprocess-based ROS2 node/topic discovery as backup
+4. **Network Latency Verification** - Confirm network latency appears in system overview  
+5. **Error Recovery** - Better handling when ROS2/network components fail
 
 ## Architecture Notes
 
@@ -153,7 +157,27 @@ python3 -c "import psutil; print(f'CPU: {psutil.cpu_percent()}%, Memory: {psutil
 
 ## Key Files to Check
 
-- `display.py:_create_system_overview()` - Two-column layout implementation
-- `collectors/network_collector.py` - Ping logic and data storage
-- `collectors/system_collector.py` - Metric preservation between updates  
+- `display.py` - Reverted to Panel-based UI, single display mode
+- `data_manager.py:25-27` - ROSCollector temporarily commented out
+- `collectors/ros_collector.py:26` - Node initialization causing RCL context error
+- `collectors/network_collector.py` - Network latency collection (should be working)
 - `shared_data.py` - Thread-safe data coordination
+
+## Architecture Changes
+
+- **UI**: Back to Rich Panel with rounded boxes for clean appearance
+- **Input**: No keyboard commands - Ctrl+C only for exit
+- **Display**: Single mode showing system resources + ROS panels (when working)
+- **ROS Integration**: Disabled due to initialization timing issues
+
+## Working Features (September 6, 2025)
+
+✅ **System Monitoring**: CPU, memory, disk, temperature collection and display  
+✅ **Network Latency**: Ping collection and display in system overview  
+✅ **Rich UI**: Clean panel-based layout with proper boxes  
+✅ **Threading**: Stable data collection coordination  
+✅ **Configuration**: YAML-based configuration system  
+
+❌ **ROS Monitoring**: Disabled due to context initialization error  
+❌ **Mode Switching**: Removed - single display mode only  
+❌ **Keyboard Commands**: Removed - Ctrl+C exit only
