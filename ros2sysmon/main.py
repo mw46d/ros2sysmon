@@ -30,7 +30,7 @@ def main():
     print(f"Using config: {args.config}")
     
     # Initialize ROS2 
-    rclpy.init()
+    # rclpy.init()
     
     # Load configuration - let it crash if bad
     config = ConfigManager.load_config(args.config)

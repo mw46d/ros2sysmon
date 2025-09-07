@@ -27,9 +27,10 @@ class DataCollectionManager:
         ]
     
     def start_collection(self):
-        """Start all data collection threads."""
+        print("Start all data collection threads.")
         self.running.set()
         
+        # Temporarily disabled data collection threads to see display frames only
         for collector in self.collectors:
             thread = threading.Thread(
                 target=collector.collect_loop,

@@ -2,7 +2,7 @@
 * write idiomatic python
 * look for libraries that exist instead of reinventing
 * don't go overboard on error checking
-* put 1-2 line comments in front of each method
+* give methods intention revealing names
 * use classes and put them in a seprate file
 * except data classes. They should go into the same file as the class that uses it. 
 * name files after the class defined in the file
