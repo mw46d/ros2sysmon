@@ -67,9 +67,11 @@ class ROSCollector:
                     
                     self.last_collection_time = current_time
                     
-                except Exception:
-                    # ROS2 not available or other issues - skip this cycle
-                    pass
+                except Exception as e:
+                    # ROS2 not available or other issues - skip this cycle and clear nodes
+                    shared_data.update_ros_nodes([])
+                    shared_data.update_topic_metrics([])
+                    # print(f"ROS collection failed: {e}")  # Uncomment for debugging
             else:
                 # Still process ROS2 callbacks between collections
                 try:
@@ -142,83 +144,49 @@ class ROSCollector:
         return hz
     
     def _discover_ros_nodes(self) -> List[ROSNodeInfo]:
-        """Discover running ROS2 nodes and their resource usage."""
+        """Discover running ROS2 nodes by name only."""
         nodes = []
         
         try:
-            # Get list of nodes using ros2 CLI
+            # Get list of nodes using ros2 CLI with longer timeout
             result = subprocess.run(
                 ['ros2', 'node', 'list'], 
                 capture_output=True, 
-                timeout=3,
+                timeout=10,  # Increased from 3 to 10 seconds
                 text=True
             )
             
             if result.returncode == 0:
                 node_names = [name.strip() for name in result.stdout.strip().split('\n') if name.strip()]
                 
-                # Get process info for each node
+                # Create simple node info with just names
                 for node_name in node_names:
-                    node_info = self._get_node_process_info(node_name)
-                    if node_info:
-                        nodes.append(node_info)
+                    node_info = ROSNodeInfo(
+                        name=node_name,
+                        pid=0,  # Not tracking process info
+                        cpu_percent=0.0,  # Not tracking CPU
+                        memory_mb=0.0,  # Not tracking memory
+                        status="ACTIVE",  # Simple active status
+                        uptime="--:--",  # Not tracking uptime
+                        namespace="/" if "/" not in node_name[1:] else node_name.rsplit("/", 1)[0]
+                    )
+                    nodes.append(node_info)
+            # else:
+            #     print(f"ros2 node list failed with return code: {result.returncode}")
+            #     print(f"stderr: {result.stderr}")
                         
-        except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError):
-            # ROS2 not available or timeout
+        except subprocess.TimeoutExpired:
+            # print("ros2 node list timed out after 10 seconds")
+            pass
+        except FileNotFoundError:
+            # print("ros2 command not found")
+            pass
+        except Exception as e:
+            # print(f"Unexpected error running ros2 node list: {e}")
             pass
         
         return nodes
     
-    def _get_node_process_info(self, node_name: str) -> Optional[ROSNodeInfo]:
-        """Get process information for a ROS node."""
-        try:
-            # Find processes that might be this ROS node
-            ros_processes = []
-            for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'cpu_percent', 'memory_info', 'create_time']):
-                try:
-                    cmdline = ' '.join(proc.info['cmdline']) if proc.info['cmdline'] else ''
-                    if node_name.lstrip('/') in cmdline or 'ros2' in proc.info['name']:
-                        ros_processes.append(proc)
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
-            
-            if not ros_processes:
-                return None
-            
-            # Use the first matching process (could be improved with better matching)
-            proc = ros_processes[0]
-            
-            # Calculate uptime
-            uptime_seconds = time.time() - proc.info['create_time']
-            uptime_hours = int(uptime_seconds // 3600)
-            uptime_minutes = int((uptime_seconds % 3600) // 60)
-            uptime_str = f"{uptime_hours:02d}:{uptime_minutes:02d}"
-            
-            # Determine status based on CPU and memory usage
-            cpu_percent = proc.info['cpu_percent']
-            memory_mb = proc.info['memory_info'].rss / 1024 / 1024
-            
-            status = "OK"
-            if cpu_percent > 50 or memory_mb > 500:
-                status = "WARN"
-            if cpu_percent > 80 or memory_mb > 1000:
-                status = "ERROR"
-            
-            # Extract namespace from node name
-            namespace = "/" if "/" not in node_name[1:] else node_name.rsplit("/", 1)[0]
-            
-            return ROSNodeInfo(
-                name=node_name,
-                pid=proc.info['pid'],
-                cpu_percent=cpu_percent,
-                memory_mb=memory_mb,
-                status=status,
-                uptime=uptime_str,
-                namespace=namespace
-            )
-            
-        except Exception:
-            return None
     
     def _collect_topic_metrics(self) -> List[TopicMetrics]:
         """Collect metrics for ROS2 topics using direct subscriptions."""
@@ -284,22 +252,7 @@ class ROSCollector:
         """Check ROS nodes and topics for potential issues."""
         alerts = []
         
-        # Check node resource usage
-        for node in nodes:
-            if node.status == "ERROR":
-                alerts.append(SystemAlert(
-                    "ERROR",
-                    f"ROS node {node.name} using high resources: {node.cpu_percent:.1f}% CPU, {node.memory_mb:.1f}MB",
-                    datetime.now(),
-                    "ROS"
-                ))
-            elif node.status == "WARN":
-                alerts.append(SystemAlert(
-                    "WARN",
-                    f"ROS node {node.name} elevated usage: {node.cpu_percent:.1f}% CPU, {node.memory_mb:.1f}MB",
-                    datetime.now(),
-                    "ROS"
-                ))
+        # No longer checking node resource usage since we don't track it
         
         # Check topic health
         for topic in topics:

@@ -6,12 +6,11 @@ import psutil
 from datetime import datetime
 from textual.app import App
 from textual.containers import Vertical, Horizontal
-from textual.widgets import Static
+from textual.widgets import Static, DataTable
 from typing import List, Optional
 from .shared_data import SharedDataStore
 from .data_models import SystemAlert, SystemMetrics, ROSNodeInfo, TopicMetrics
 from .config import Config
-from .keyboard_handler import KeyboardHandler
 
 
 class DisplayManager(App):
@@ -19,54 +18,68 @@ class DisplayManager(App):
     
     CSS = """
     #header {
-        height: 7;
+        height: 8;
         background: black;
-        color: red;
+        color: white;
         text-align: left;
+        border-bottom: white;
     }
     
     #left {
         height: auto;
-        width: 1fr;
+        width: 30%;
         background: black;
-        color: green;
+        color: white;
         text-align: left;
     }
     
     #middle {
         height: auto;
-        width: 1fr;
+        width: 70%;
         background: black;
-        color: blue;
+        color: white;
         text-align: left;
     }
     
-    #right {
+    #left_ros {
         height: auto;
-        width: 1fr;
+        width: 30%;
         background: black;
-        color: purple;
+        color: white;
+        text-align: left;
+    }
+    
+    #middle_ros {
+        height: auto;
+        width: 70%;
+        background: black;
+        color: white;
         text-align: left;
     }
     
     #alerts {
-        height: 8;
+        height: 5;
         background: black;
-        color: orange;
+        color: white;
         text-align: left;
-        border: white;
+        border-top: white;
+        dock: bottom;
     }
     
     #help {
-        height: 3;
+        height: 1;
         background: black;
         color: cyan;
         text-align: left;
+        dock: bottom;
     }
     
     .body {
         height: auto;
-        border: solid white;
+    }
+    
+    .hidden {
+        display: none;
     }
     """
 
@@ -75,21 +88,24 @@ class DisplayManager(App):
         super().__init__()
         self.config = config
         self.exit_requested = False
-        self.display_mode = "system"
-        self.keyboard_handler = KeyboardHandler()
+        self.display_mode = "1"
 
     def compose(self):
         """Create the layout structure."""
         with Vertical():
-            yield Static("Header disabled for testing", id="header")
+            yield Static("Loading system metrics...", id="header")
             
             with Horizontal(classes="body"):
-                yield Static("Left pane disabled", id="left")
-                yield Static("Middle pane disabled", id="middle")
-                yield Static("Right pane disabled", id="right")
+                # Mode 2 panes (initially hidden) - Nodes, Processes
+                yield Static("ROS2 Nodes\n-----------\nROS not running", id="left", classes="hidden")
+                yield Static("System Processes\n----------------\nLoading processes...", id="middle", classes="hidden")
+                
+                # Mode 1 panes (default visible) - Topics, TF Frames
+                yield Static("ROS2 Topics\n-----------\nNo ROS topics detected", id="left_ros")
+                yield Static("TF Frames\n---------\nTF monitoring coming soon", id="middle_ros")
             
-            yield Static("Alerts pane disabled", id="alerts")
-            yield Static("Help pane disabled", id="help")
+            yield Static("No alerts", id="alerts")
+            yield Static(self._create_help_panel(), id="help")
 
     def run_display(self, shared_data: SharedDataStore):
         """Run the main display with data polling loop."""
@@ -98,10 +114,6 @@ class DisplayManager(App):
 
         signal.signal(signal.SIGTERM, exit_handler)
 
-        self.keyboard_handler.set_exit_callback(
-            lambda: setattr(self, "exit_requested", True)
-        )
-        self.keyboard_handler.start_listening()
 
         # Store shared_data reference for the app
         self.shared_data = shared_data
@@ -109,7 +121,7 @@ class DisplayManager(App):
         try:
             self.run()
         finally:
-            self.keyboard_handler.stop_listening()
+            pass
 
     def on_mount(self):
         """Start the data update timer when app mounts."""
@@ -120,6 +132,44 @@ class DisplayManager(App):
         if event.key == "x":
             self.exit_requested = True
             self.exit()
+        elif event.key == "1":
+            self.display_mode = "1"
+            self._switch_to_mode_1_panes()
+        elif event.key == "2":
+            self.display_mode = "2"
+            self._switch_to_mode_2_panes()
+
+    def _switch_to_mode_2_panes(self):
+        """Switch to mode 2 panes (Nodes, Processes)."""
+        # Show mode 2 panes
+        self.query_one("#left").remove_class("hidden")
+        self.query_one("#middle").remove_class("hidden")
+        
+        # Hide mode 1 panes
+        self.query_one("#left_ros").add_class("hidden")
+        self.query_one("#middle_ros").add_class("hidden")
+
+    def _switch_to_mode_1_panes(self):
+        """Switch to mode 1 panes (Topics, TF Frames)."""
+        # Hide mode 2 panes
+        self.query_one("#left").add_class("hidden")
+        self.query_one("#middle").add_class("hidden")
+        
+        # Show mode 1 panes
+        self.query_one("#left_ros").remove_class("hidden")
+        self.query_one("#middle_ros").remove_class("hidden")
+
+    def _update_ros_panels(self, nodes, topics):
+        """Update the Mode 1 panels."""
+        # Update topics panel (left in Mode 1)
+        left_ros_widget = self.query_one("#left_ros")
+        topics_content = f"ROS2 Topics\n-----------\n{len(topics) if topics else 0} topics detected"
+        left_ros_widget.update(topics_content)
+        
+        # Update TF frames panel (right in Mode 1)
+        middle_ros_widget = self.query_one("#middle_ros")
+        tf_content = "TF Frames\n---------\nTF monitoring coming soon"
+        middle_ros_widget.update(tf_content)
 
     def _update_display(self):
         """Update all display panels with current data."""
@@ -133,7 +183,7 @@ class DisplayManager(App):
             self._update_header_panel(metrics)
             self._update_left_panel(nodes)
             self._update_middle_panel(metrics)
-            self._update_right_panel(topics, metrics)
+            self._update_ros_panels(nodes, topics)
             self._update_alerts_panel(alerts)
             self._update_help_panel()
             
@@ -190,23 +240,115 @@ class DisplayManager(App):
         
         return "\n".join(lines)
 
+    def _create_processes_panel(self) -> str:
+        """Create the system processes panel content with ROS-related processes."""
+        lines = []
+        lines.append("System Processes")
+        lines.append("----------------")
+        lines.append("PID    Process              CPU%   Mem%")
+        lines.append("-" * 40)
+        
+        try:
+            # Get ROS-related processes
+            ros_processes = []
+            ros_keywords = [
+                "ros2", "rviz", "gazebo", "navigation", "moveit", "rqt",
+                "robot_state", "joint_state", "launch", "python3"
+            ]
+            
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'cpu_percent', 'memory_percent']):
+                try:
+                    proc_info = proc.info
+                    proc_name = proc_info['name'].lower()
+                    cmdline = ' '.join(proc_info['cmdline']).lower() if proc_info['cmdline'] else ''
+                    
+                    # Check if process is ROS-related
+                    is_ros_process = any(
+                        keyword in proc_name or keyword in cmdline
+                        for keyword in ros_keywords
+                    )
+                    
+                    if is_ros_process:
+                        # Get CPU percentage
+                        try:
+                            cpu_pct = proc.cpu_percent(interval=0.1)
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            cpu_pct = 0.0
+                            
+                        ros_processes.append({
+                            'pid': proc_info['pid'],
+                            'name': proc_info['name'],
+                            'cpu_percent': cpu_pct,
+                            'memory_percent': proc_info['memory_percent'] or 0.0
+                        })
+                        
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+            
+            # Sort by CPU usage (highest first) and take top processes
+            top_processes = sorted(
+                ros_processes, 
+                key=lambda p: p['cpu_percent'], 
+                reverse=True
+            )[:15]  # Show top 15 processes
+            
+            if not top_processes:
+                lines.append("No ROS processes found")
+            else:
+                for proc in top_processes:
+                    # Format process name to fit in available space
+                    proc_name = proc['name'][:16] if len(proc['name']) > 16 else proc['name']
+                    proc_name = proc_name.ljust(16)
+                    
+                    # Format data columns
+                    pid_str = str(proc['pid']).ljust(6)
+                    cpu_str = f"{proc['cpu_percent']:5.1f}"
+                    mem_str = f"{proc['memory_percent']:5.1f}"
+                    
+                    line = f"{pid_str} {proc_name} {cpu_str} {mem_str}"
+                    lines.append(line)
+                    
+        except Exception:
+            lines.append("Error loading processes")
+            
+        return "\n".join(lines)
+
+    def _create_network_panel(self, metrics) -> str:
+        """Create the network stats panel content."""
+        lines = []
+        lines.append("Network Stats")
+        lines.append("-------------")
+        if metrics and metrics.network_latency is not None:
+            lines.append(f"Ping: {metrics.network_latency:.1f}ms")
+        else:
+            lines.append("Ping: checking...")
+        lines.append("Interfaces: Loading...")
+        return "\n".join(lines)
+
+    def _create_extra_panel(self, metrics) -> str:
+        """Create the system extra panel content."""
+        lines = []
+        lines.append("System Extra")
+        lines.append("------------")
+        if metrics and metrics.temperature:
+            lines.append(f"Temperature: {metrics.temperature:.1f}°C")
+        if metrics and metrics.battery_percent:
+            lines.append(f"Battery: {metrics.battery_percent:.1f}%")
+        lines.append("More info: Loading...")
+        return "\n".join(lines)
+
     def _update_left_panel(self, nodes):
-        """Update the left panel."""
+        """Update the left panel (Mode 2: ROS Nodes)."""
         left_widget = self.query_one("#left")
         content = self._create_nodes_panel(nodes)
         left_widget.update(content)
 
     def _update_middle_panel(self, metrics):
-        """Update the middle panel."""
+        """Update the middle panel (Mode 2: System Processes)."""
         middle_widget = self.query_one("#middle")
-        content = "System Details"
+        content = self._create_processes_panel()
         middle_widget.update(content)
 
-    def _update_right_panel(self, topics, metrics):
-        """Update the right panel."""
-        right_widget = self.query_one("#right")
-        content = f"ROS Topics: {len(topics) if topics else 0}"
-        right_widget.update(content)
 
     def _update_alerts_panel(self, alerts):
         """Update the alerts panel."""
@@ -222,9 +364,6 @@ class DisplayManager(App):
         # Show last few alerts (fit within panel height)
         recent_alerts = list(alerts)[-6:]
         alert_lines = []
-        
-        alert_lines.append(f"System Alerts ({len(alerts)} total)")
-        alert_lines.append("-" * 30)
 
         for alert in recent_alerts:
             # Format time and message
@@ -254,42 +393,26 @@ class DisplayManager(App):
 
     def _create_help_panel(self) -> str:
         """Create help panel content with keyboard shortcuts."""
-        help_lines = []
-        
-        help_lines.append("Help")
-        help_lines.append("Commands: Press 'x' or Ctrl+C to quit")
-        
-        return "\n".join(help_lines)
+        return "Commands: '1' = Mode 1, '2' = Mode 2, 'x' = quit"
 
     def _create_nodes_panel(self, nodes: List[ROSNodeInfo]) -> str:
-        """Create the ROS nodes panel content for left panel."""
+        """Create the ROS nodes panel content with just node names."""
         if not nodes:
-            return "ROS2 Nodes\n-----------\nNo ROS nodes detected"
+            return "ROS2 Nodes\n-----------\nROS not running"
 
         lines = []
-        lines.append(f"ROS2 Nodes ({len(nodes)} total)")
-        lines.append("-" * 25)
-        
-        # Table headers
-        lines.append("Node                     CPU%  Mem(MB) Status Uptime")
-        lines.append("-" * 50)
+        lines.append(f"Nodes ({len(nodes)})")
+        lines.append("-" * 20)
 
-        # Sort nodes by CPU usage (highest first)
-        sorted_nodes = sorted(nodes, key=lambda n: n.cpu_percent, reverse=True)
+        # Sort nodes alphabetically for consistent display
+        sorted_nodes = sorted(nodes, key=lambda n: n.name.lower())
 
-        # Show top 10 nodes to fit in panel
-        for node in sorted_nodes[:10]:
-            # Truncate long node names
-            node_name = node.name[:20] if len(node.name) > 20 else node.name
-            node_name = node_name.ljust(20)
-            
-            # Format data columns
-            cpu_str = f"{node.cpu_percent:5.1f}"
-            mem_str = f"{node.memory_mb:7.1f}"
-            status_str = node.status[:6].ljust(6)
-            uptime_str = node.uptime[:8] if len(node.uptime) > 8 else node.uptime.ljust(8)
-            
-            line = f"{node_name} {cpu_str} {mem_str} {status_str} {uptime_str}"
-            lines.append(line)
+        # Show all nodes, truncate to fit wider panel (30% width)
+        for node in sorted_nodes:
+            # Clean up node name display and truncate to 30 chars for wider column
+            node_name = node.name.strip()
+            if len(node_name) > 30:
+                node_name = node_name[:27] + "..."
+            lines.append(node_name)
 
         return "\n".join(lines)
