@@ -1,15 +1,15 @@
-# Static configuration with manual refresh - for systems with static data
-refresh_rate: 5.0  # seconds - display update rate
+# Battery saver configuration - for battery-powered systems
+refresh_rate: 10.0  # seconds - slow display updates
 max_alerts: 10
 max_nodes_display: 15
 max_topics_display: 10
 
-# Collection intervals - one-shot with manual refresh
+# Collection intervals - very slow updates to save battery
 collection_intervals:
-  system_metrics: 1.0      # Regular system monitoring
-  network_ping: 0.0        # One-shot network check (use 'r' to refresh)
-  ros_discovery: 0.0       # One-shot ROS discovery (use 'r' to refresh)
-  ros_callbacks: 0.0       # No ROS processing (use 'r' for updates)
+  system_metrics: 10.0     # Very slow system updates
+  network_ping: 0.0        # Disabled - manual refresh only
+  ros_discovery: 30.0      # Very slow ROS discovery
+  ros_callbacks: 0.5       # Reduced ROS processing
 
 # System thresholds
 thresholds:

@@ -16,24 +16,48 @@ class SystemCollector:
         """Initialize the system collector."""
         self.config = config
         self.last_network_check = time.time()
+        self.manual_refresh_requested = False
     
     def collect_loop(self, shared_data: SharedDataStore, running: threading.Event):
-        """Main collection loop - runs in background thread."""
-        while running.is_set():
-            try:
-                metrics = self._collect_system_metrics(shared_data)
-                shared_data.update_system_metrics(metrics)
-                
-                # Generate alerts based on thresholds
-                alerts = self._check_thresholds(metrics)
-                for alert in alerts:
-                    shared_data.add_alert(alert)
-                    
-            except (psutil.NoSuchProcess, PermissionError):
-                # Expected errors - just skip this iteration
-                pass
+        """Main collection loop with zero-interval support."""
+        # Initial collection
+        self._do_collection(shared_data)
+        
+        # Get collection interval
+        interval = self.config.collection_intervals.system_metrics
+        
+        if interval == 0.0:
+            # Zero interval: run once and wait for manual refresh
+            while running.is_set():
+                if self.manual_refresh_requested:
+                    self.manual_refresh_requested = False
+                    self._do_collection(shared_data)
+                time.sleep(0.1)  # Small sleep to avoid busy waiting
+        else:
+            # Normal interval-based collection
+            while running.is_set():
+                time.sleep(interval)
+                if running.is_set():  # Check again after sleep
+                    self._do_collection(shared_data)
+    
+    def _do_collection(self, shared_data: SharedDataStore):
+        """Perform one collection cycle."""
+        try:
+            metrics = self._collect_system_metrics(shared_data)
+            shared_data.update_system_metrics(metrics)
             
-            time.sleep(self.config.refresh_rate)
+            # Generate alerts based on thresholds
+            alerts = self._check_thresholds(metrics)
+            for alert in alerts:
+                shared_data.add_alert(alert)
+                
+        except (psutil.NoSuchProcess, PermissionError):
+            # Expected errors - just skip this iteration
+            pass
+    
+    def trigger_manual_refresh(self):
+        """Trigger an immediate collection cycle."""
+        self.manual_refresh_requested = True
     
     def _collect_system_metrics(self, shared_data: SharedDataStore) -> SystemMetrics:
         """Collect current system metrics, preserving network latency."""

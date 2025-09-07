@@ -11,7 +11,9 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from rosidl_runtime_py.utilities import get_message
-from ..data_models import ROSNodeInfo, TopicMetrics, SystemAlert
+from tf2_ros import TransformListener, Buffer
+import yaml
+from ..data_models import ROSNodeInfo, TopicMetrics, SystemAlert, TFFrameInfo
 from ..shared_data import SharedDataStore
 from ..config import Config
 
@@ -31,6 +33,11 @@ class ROSCollector:
         self.message_counts = defaultdict(int)
         self.topic_types = {}
         self.subscribers = {}
+        
+        # TF monitoring
+        self.tf_buffer = None
+        self.tf_listener = None
+        
         self.node = None  # Will be initialized in collect_loop
     
     def collect_loop(self, shared_data: SharedDataStore, running: threading.Event):
@@ -38,49 +45,92 @@ class ROSCollector:
         # Initialize ROS2 node in the collection thread
         try:
             self.node = Node('ros2sysmon_collector')
+            # print("ROS Collector: Successfully created ROS2 node")
+            # Setup TF listener
+            self.tf_buffer = Buffer()
+            self.tf_listener = TransformListener(self.tf_buffer, self.node)
+            # print("ROS Collector: Successfully created TF listener")
             # Setup topic subscribers on first run
             self._setup_topic_subscribers()
-        except Exception:
+            # print("ROS Collector: Successfully setup topic subscribers")
+        except Exception as e:
             # ROS2 context not available - run without ROS features
+            # print(f"ROS Collector: Failed to initialize ROS2 node: {e}")
             self.node = None
+            self.tf_buffer = None
+            self.tf_listener = None
         
-        while running.is_set():
-            current_time = time.time()
+        # Get collection intervals
+        ros_interval = self.config.collection_intervals.ros_discovery
+        callback_interval = self.config.collection_intervals.ros_callbacks
+        
+        # Initial collection
+        self._do_ros_collection(shared_data)
+        
+        if ros_interval == 0.0:
+            # Zero interval: run once and wait for manual refresh
+            while running.is_set():
+                # Still process ROS2 callbacks if configured
+                if callback_interval > 0.0 and self.node:
+                    try:
+                        rclpy.spin_once(self.node, timeout_sec=callback_interval)
+                    except Exception:
+                        pass
+                
+                if self.manual_refresh_requested:
+                    self.manual_refresh_requested = False
+                    self._do_ros_collection(shared_data)
+                
+                time.sleep(0.1)  # Small sleep to avoid busy waiting
+        else:
+            # Normal interval-based collection
+            last_collection_time = time.time()
+            while running.is_set():
+                current_time = time.time()
+                
+                # Check if it's time for ROS collection
+                if current_time - last_collection_time >= ros_interval:
+                    self._do_ros_collection(shared_data)
+                    last_collection_time = current_time
+                
+                # Process ROS2 callbacks if configured
+                if callback_interval > 0.0 and self.node:
+                    try:
+                        rclpy.spin_once(self.node, timeout_sec=callback_interval)
+                    except Exception:
+                        pass
+                
+                time.sleep(0.01)  # Small delay to prevent busy waiting
+    
+    def _do_ros_collection(self, shared_data: SharedDataStore):
+        """Perform one ROS collection cycle."""
+        try:
+            nodes = self._discover_ros_nodes()
+            topics = self._collect_topic_metrics()
+            tf_frames = self._get_tf_frames()
             
-            # Collect ROS data at specified interval
-            if current_time - self.last_collection_time >= self.collection_interval:
-                try:
-                    if self.node:
-                        # Spin ROS2 node to process callbacks
-                        rclpy.spin_once(self.node, timeout_sec=0.01)
-                    
-                    nodes = self._discover_ros_nodes()
-                    topics = self._collect_topic_metrics()
-                    
-                    shared_data.update_ros_nodes(nodes)
-                    shared_data.update_topic_metrics(topics)
-                    
-                    # Generate ROS-related alerts
-                    alerts = self._check_ros_thresholds(nodes, topics)
-                    for alert in alerts:
-                        shared_data.add_alert(alert)
-                    
-                    self.last_collection_time = current_time
-                    
-                except Exception as e:
-                    # ROS2 not available or other issues - skip this cycle and clear nodes
-                    shared_data.update_ros_nodes([])
-                    shared_data.update_topic_metrics([])
-                    # print(f"ROS collection failed: {e}")  # Uncomment for debugging
-            else:
-                # Still process ROS2 callbacks between collections
-                try:
-                    if self.node:
-                        rclpy.spin_once(self.node, timeout_sec=0.01)
-                except:
-                    pass
+            # Debug output (uncomment for troubleshooting)
+            # print(f"ROS Collector: Found {len(nodes)} nodes, {len(topics)} topics, {len(tf_frames)} TF frames")
             
-            time.sleep(self.config.refresh_rate)
+            shared_data.update_ros_nodes(nodes)
+            shared_data.update_topic_metrics(topics)
+            shared_data.update_tf_frames(tf_frames)
+            
+            # Generate ROS-related alerts
+            alerts = self._check_ros_thresholds(nodes, topics)
+            for alert in alerts:
+                shared_data.add_alert(alert)
+            
+        except Exception as e:
+            # ROS2 not available or other issues - clear data
+            shared_data.update_ros_nodes([])
+            shared_data.update_topic_metrics([])
+            shared_data.update_tf_frames([])
+            # print(f"ROS collection failed: {e}")  # Debug output
+    
+    def trigger_manual_refresh(self):
+        """Trigger an immediate collection cycle."""
+        self.manual_refresh_requested = True
     
     def _setup_topic_subscribers(self):
         """Setup subscribers for all available topics to track frequency."""
@@ -189,45 +239,66 @@ class ROSCollector:
     
     
     def _collect_topic_metrics(self) -> List[TopicMetrics]:
-        """Collect metrics for ROS2 topics using direct subscriptions."""
+        """Collect metrics for ROS2 topics using CLI-based discovery."""
         topics = []
         
         try:
-            # Use our tracked topics from subscriptions
-            for topic_name, topic_type in self.topic_types.items():
-                frequency_hz = self._calculate_topic_hz(topic_name)
-                message_count = self.message_counts.get(topic_name, 0)
+            # Get list of topics using ros2 CLI
+            result = subprocess.run(
+                ['ros2', 'topic', 'list', '-t'], 
+                capture_output=True, 
+                timeout=5,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                lines = result.stdout.strip().split('\n')
+                for line in lines:
+                    if line.strip() and ' ' in line:
+                        # Parse "topic_name message_type" format
+                        parts = line.strip().split()
+                        if len(parts) >= 2:
+                            topic_name = parts[0]
+                            msg_type = parts[-1]  # Take the last part as message type
+                            
+                            # Calculate frequency if we have subscription data
+                            frequency_hz = self._calculate_topic_hz(topic_name) if topic_name in self.timestamps else 0.0
+                            
+                            # Determine status based on frequency
+                            status = "OK"
+                            if frequency_hz == 0:
+                                status = "IDLE"
+                            elif frequency_hz < 1.0:
+                                status = "SLOW"
+                            
+                            # Set target frequency based on common topic patterns
+                            target_frequency = self._get_target_frequency(topic_name, msg_type)
+                            
+                            # Estimate bandwidth (rough approximation)
+                            bandwidth_bps = int(frequency_hz * 100)  # Assume ~100 bytes per message
+                            
+                            # Get message count
+                            message_count = self.message_counts.get(topic_name, 0)
+                            
+                            topic_metrics = TopicMetrics(
+                                name=topic_name,
+                                frequency_hz=frequency_hz,
+                                target_frequency=target_frequency,
+                                bandwidth_bps=bandwidth_bps,
+                                message_count=message_count,
+                                msg_type=msg_type,
+                                status=status,
+                                last_seen=datetime.now()
+                            )
+                            topics.append(topic_metrics)
+            # else:
+            #     print(f"ros2 topic list failed with return code: {result.returncode}")
                 
-                # Determine status based on frequency
-                status = "OK"
-                if frequency_hz == 0:
-                    status = "IDLE"
-                elif frequency_hz < 1.0:
-                    status = "SLOW"
-                
-                # Estimate bandwidth (rough approximation)
-                bandwidth_bps = int(frequency_hz * 100)  # Assume ~100 bytes per message
-                
-                # Set target frequency based on common topic patterns
-                target_frequency = self._get_target_frequency(topic_name, topic_type)
-                
-                topic_metrics = TopicMetrics(
-                    name=topic_name,
-                    frequency_hz=frequency_hz,
-                    target_frequency=target_frequency,
-                    bandwidth_bps=bandwidth_bps,
-                    message_count=message_count,
-                    msg_type=topic_type,
-                    status=status,
-                    last_seen=datetime.now()
-                )
-                
-                topics.append(topic_metrics)
-                                
-        except Exception:
-            # ROS2 not available
+        except Exception as e:
+            # Return empty list on error
+            # print(f"Topic collection failed: {e}")  # Uncomment for debugging
             pass
-        
+            
         return topics
     
     def _get_target_frequency(self, topic_name: str, msg_type: str) -> float:
@@ -272,3 +343,58 @@ class ROSCollector:
                 ))
         
         return alerts
+    
+    def _get_tf_frames(self) -> List[TFFrameInfo]:
+        """Get current TF frame information."""
+        if not self.tf_buffer:
+            return []
+            
+        try:
+            # Get all frames as YAML
+            all_frames_yaml = self.tf_buffer.all_frames_as_yaml()
+            
+            # Parse YAML to get frame names and relationships
+            frames_dict = yaml.safe_load(all_frames_yaml)
+            
+            if not frames_dict:
+                return []
+            
+            # Find root frames (frames that appear as parents but don't exist as actual frames)
+            all_frame_names = set(frames_dict.keys())
+            all_parents = set()
+            
+            for frame_info in frames_dict.values():
+                parent = frame_info.get('parent')
+                if parent and parent != '':
+                    all_parents.add(parent)
+            
+            # Root frames are parents that don't exist as actual frames
+            root_frame_names = all_parents - all_frame_names
+            
+            tf_frames = []
+            
+            # Add root frames (these won't have frame_info, so create dummy entries)
+            for root_name in sorted(root_frame_names):
+                tf_frames.append(TFFrameInfo(
+                    frame_id=root_name,
+                    parent_frame='ROOT',  # Root frames have no parent
+                    most_recent_transform=0.0,
+                    oldest_transform=0.0,
+                    is_root=True
+                ))
+            
+            # Add all actual frames as child frames
+            for frame_id, frame_info in sorted(frames_dict.items()):
+                tf_frames.append(TFFrameInfo(
+                    frame_id=frame_id,
+                    parent_frame=frame_info.get('parent', ''),
+                    most_recent_transform=frame_info.get('most_recent_transform', 0.0),
+                    oldest_transform=frame_info.get('oldest_transform', 0.0),
+                    is_root=False
+                ))
+            
+            return tf_frames
+            
+        except Exception as e:
+            # Return empty list on error
+            return []

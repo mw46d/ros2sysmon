@@ -50,3 +50,13 @@ class TopicMetrics:
     msg_type: str
     status: str  # "OK", "SLOW", "IDLE", "ERROR"
     last_seen: datetime
+
+
+@dataclass
+class TFFrameInfo:
+    """Information about TF transform frames."""
+    frame_id: str
+    parent_frame: str
+    most_recent_transform: float  # timestamp
+    oldest_transform: float  # timestamp
+    is_root: bool  # True if this is a root frame

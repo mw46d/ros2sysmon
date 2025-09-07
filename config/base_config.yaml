@@ -1,15 +1,15 @@
-# Static configuration with manual refresh - for systems with static data
-refresh_rate: 5.0  # seconds - display update rate
+# Refresh and display settings
+refresh_rate: 5.0  # seconds - main display update rate
 max_alerts: 10
 max_nodes_display: 15
 max_topics_display: 10
 
-# Collection intervals - one-shot with manual refresh
+# Collection intervals
 collection_intervals:
-  system_metrics: 1.0      # Regular system monitoring
-  network_ping: 0.0        # One-shot network check (use 'r' to refresh)
-  ros_discovery: 0.0       # One-shot ROS discovery (use 'r' to refresh)
-  ros_callbacks: 0.0       # No ROS processing (use 'r' for updates)
+  system_metrics: 1.0      # How often to collect CPU, memory, disk, temp
+  network_ping: 5.0        # How often to ping for network latency
+  ros_discovery: 2.0       # How often to discover ROS nodes/topics
+  ros_callbacks: 0.1       # How often to process ROS2 callbacks (spin_once)
 
 # System thresholds
 thresholds:

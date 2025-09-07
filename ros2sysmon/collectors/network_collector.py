@@ -17,34 +17,51 @@ class NetworkCollector:
         """Initialize the network collector."""
         self.config = config
         self.last_ping_time = 0
-        self.ping_interval = 5.0  # Ping every 5 seconds to avoid spam
+        self.manual_refresh_requested = False
     
     def collect_loop(self, shared_data: SharedDataStore, running: threading.Event):
-        """Main collection loop - runs in background thread."""
-        while running.is_set():
-            current_time = time.time()
+        """Main collection loop with zero-interval support."""
+        # Initial collection
+        self._do_collection(shared_data)
+        
+        # Get collection interval
+        interval = self.config.collection_intervals.network_ping
+        
+        if interval == 0.0:
+            # Zero interval: run once and wait for manual refresh
+            while running.is_set():
+                if self.manual_refresh_requested:
+                    self.manual_refresh_requested = False
+                    self._do_collection(shared_data)
+                time.sleep(0.1)  # Small sleep to avoid busy waiting
+        else:
+            # Normal interval-based collection
+            while running.is_set():
+                time.sleep(interval)
+                if running.is_set():  # Check again after sleep
+                    self._do_collection(shared_data)
+    
+    def _do_collection(self, shared_data: SharedDataStore):
+        """Perform one collection cycle."""
+        try:
+            latency = self._check_network_latency()
             
-            # Only ping every 5 seconds to avoid network spam
-            if current_time - self.last_ping_time >= self.ping_interval:
-                try:
-                    latency = self._check_network_latency()
-                    
-                    # Only update if we got a valid measurement
-                    if latency is not None:
-                        self._update_system_metrics_with_latency(shared_data, latency)
-                        
-                        # Generate network alerts
-                        alerts = self._check_latency_thresholds(latency)
-                        for alert in alerts:
-                            shared_data.add_alert(alert)
-                    
-                    self.last_ping_time = current_time
-                    
-                except Exception:
-                    # Network issues expected - just skip this check
-                    pass
+            # Only update if we got a valid measurement
+            if latency is not None:
+                self._update_system_metrics_with_latency(shared_data, latency)
+                
+                # Generate network alerts
+                alerts = self._check_latency_thresholds(latency)
+                for alert in alerts:
+                    shared_data.add_alert(alert)
             
-            time.sleep(self.config.refresh_rate)
+        except Exception:
+            # Network issues expected - just skip this check
+            pass
+    
+    def trigger_manual_refresh(self):
+        """Trigger an immediate collection cycle."""
+        self.manual_refresh_requested = True
     
     def _check_network_latency(self) -> Optional[float]:
         """Check network latency with ping to 8.8.8.8."""

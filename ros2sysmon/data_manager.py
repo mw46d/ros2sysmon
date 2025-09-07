@@ -67,3 +67,9 @@ class DataCollectionManager:
             thread.start()
             self.threads.append(thread)
             self.collectors.append(collector)
+    
+    def trigger_manual_refresh(self):
+        """Trigger immediate refresh of all collectors."""
+        for collector in self.collectors:
+            if hasattr(collector, 'trigger_manual_refresh'):
+                collector.trigger_manual_refresh()

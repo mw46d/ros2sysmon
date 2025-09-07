@@ -5,6 +5,7 @@ from .threshold_config import ThresholdConfig
 from .topic_config import TopicConfig
 from .ros_config import ROSConfig
 from .display_config import DisplayConfig
+from .collection_config import CollectionConfig
 
 
 class ConfigManager:
@@ -15,6 +16,9 @@ class ConfigManager:
         """Load configuration from YAML file - let it crash if bad."""
         with open(config_path, 'r') as f:
             config_data = yaml.safe_load(f)
+        
+        # Parse collection intervals
+        collection_intervals = CollectionConfig(**config_data['collection_intervals'])
         
         # Parse thresholds
         thresholds = ThresholdConfig(**config_data['thresholds'])
@@ -35,6 +39,7 @@ class ConfigManager:
             max_alerts=config_data['max_alerts'],
             max_nodes_display=config_data['max_nodes_display'],
             max_topics_display=config_data['max_topics_display'],
+            collection_intervals=collection_intervals,
             thresholds=thresholds,
             ros=ros_config,
             display=display

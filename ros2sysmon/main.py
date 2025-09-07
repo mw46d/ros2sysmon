@@ -30,7 +30,7 @@ def main():
     print(f"Using config: {args.config}")
     
     # Initialize ROS2 
-    # rclpy.init()
+    rclpy.init()
     
     # Load configuration - let it crash if bad
     config = ConfigManager.load_config(args.config)
@@ -46,7 +46,7 @@ def main():
     
     try:
         # Run Rich display (blocking)
-        display_manager.run_display(shared_data)
+        display_manager.run_display(shared_data, data_manager)
     except KeyboardInterrupt:
         pass
     finally:

@@ -2,7 +2,7 @@
 import threading
 from collections import deque
 from typing import List, Optional
-from .data_models import SystemMetrics, SystemAlert, ROSNodeInfo, TopicMetrics
+from .data_models import SystemMetrics, SystemAlert, ROSNodeInfo, TopicMetrics, TFFrameInfo
 
 
 class SharedDataStore:
@@ -14,6 +14,7 @@ class SharedDataStore:
         self.system_metrics: Optional[SystemMetrics] = None
         self.ros_nodes: List[ROSNodeInfo] = []
         self.topic_metrics: List[TopicMetrics] = []
+        self.tf_frames: List[TFFrameInfo] = []
         self.alerts = deque(maxlen=50)
     
     def update_system_metrics(self, metrics: SystemMetrics):
@@ -31,6 +32,11 @@ class SharedDataStore:
         with self._lock:
             self.topic_metrics = topics.copy()
     
+    def update_tf_frames(self, frames: List[TFFrameInfo]):
+        """Update TF frame list in a thread-safe manner."""
+        with self._lock:
+            self.tf_frames = frames.copy()
+    
     def add_alert(self, alert: SystemAlert):
         """Add an alert to the alert queue."""
         with self._lock:
@@ -43,5 +49,6 @@ class SharedDataStore:
                 self.system_metrics,
                 self.ros_nodes.copy(),
                 self.topic_metrics.copy(),
+                self.tf_frames.copy(),
                 list(self.alerts)
             )
