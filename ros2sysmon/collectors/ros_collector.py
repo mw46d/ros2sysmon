@@ -25,11 +25,14 @@ class ROSCollector:
         """Initialize the ROS collector."""
         self.config = config
         self.last_collection_time = 0
-        self.collection_interval = 2.0  # Collect every 2 seconds
-        self.window_size = 50  # Number of messages to track for Hz calculation
+        self.manual_refresh_requested = False
         
-        # Topic frequency tracking
-        self.timestamps = defaultdict(lambda: deque(maxlen=self.window_size))
+        # Windowed Hz collection approach
+        self.collection_window_timestamps = defaultdict(list)
+        self.collection_window_start_time = None
+        self.collection_active = False
+        
+        # Legacy tracking (still needed for compatibility)
         self.message_counts = defaultdict(int)
         self.topic_types = {}
         self.subscribers = {}
@@ -62,46 +65,102 @@ class ROSCollector:
         
         # Get collection intervals
         ros_interval = self.config.collection_intervals.ros_discovery
-        callback_interval = self.config.collection_intervals.ros_callbacks
+        hz_duration = self.config.collection_intervals.hz_collection_duration
         
-        # Initial collection
-        self._do_ros_collection(shared_data)
+        # Initial collection without Hz (just discovery)
+        self._do_ros_discovery_only(shared_data)
+        
+        # Add ready alert
+        from ..data_models import SystemAlert
+        from datetime import datetime
+        alert = SystemAlert(
+            "INFO",
+            "ROS collector ready - press 'r' to refresh",
+            datetime.now(),
+            "ROS"
+        )
+        shared_data.add_alert(alert)
         
         if ros_interval == 0.0:
             # Zero interval: run once and wait for manual refresh
             while running.is_set():
-                # Still process ROS2 callbacks if configured
-                if callback_interval > 0.0 and self.node:
-                    try:
-                        rclpy.spin_once(self.node, timeout_sec=callback_interval)
-                    except Exception:
-                        pass
-                
                 if self.manual_refresh_requested:
+                    print(f"DEBUG: Processing manual refresh request")
                     self.manual_refresh_requested = False
-                    self._do_ros_collection(shared_data)
+                    self._do_windowed_collection(shared_data, hz_duration)
                 
                 time.sleep(0.1)  # Small sleep to avoid busy waiting
         else:
-            # Normal interval-based collection
+            # Normal interval-based windowed collection
             last_collection_time = time.time()
             while running.is_set():
                 current_time = time.time()
                 
-                # Check if it's time for ROS collection
+                # Check if it's time for windowed ROS collection
                 if current_time - last_collection_time >= ros_interval:
-                    self._do_ros_collection(shared_data)
+                    self._do_windowed_collection(shared_data, hz_duration)
                     last_collection_time = current_time
-                
-                # Process ROS2 callbacks if configured
-                if callback_interval > 0.0 and self.node:
-                    try:
-                        rclpy.spin_once(self.node, timeout_sec=callback_interval)
-                    except Exception:
-                        pass
                 
                 time.sleep(0.01)  # Small delay to prevent busy waiting
     
+    def _do_windowed_collection(self, shared_data: SharedDataStore, hz_duration: float):
+        """Perform windowed Hz collection with start/stop phases."""
+        try:
+            # 1. Start collection window
+            self.start_collection_window(shared_data)
+            
+            # 2. Collect for the specified duration while spinning ROS
+            end_time = time.time() + hz_duration
+            while time.time() < end_time:
+                if self.node:
+                    try:
+                        rclpy.spin_once(self.node, timeout_sec=0.01)
+                    except Exception:
+                        pass
+                time.sleep(0.001)  # Small sleep to prevent busy waiting
+            
+            # 3. Stop collection window
+            self.stop_collection_window(shared_data)
+            
+            # 4. Collect other ROS data and calculate Hz
+            nodes = self._discover_ros_nodes()
+            topics = self._collect_topic_metrics()
+            tf_frames = self._get_tf_frames()
+            
+            shared_data.update_ros_nodes(nodes)
+            shared_data.update_topic_metrics(topics)
+            shared_data.update_tf_frames(tf_frames)
+            
+            # Generate ROS-related alerts
+            alerts = self._check_ros_thresholds(nodes, topics)
+            for alert in alerts:
+                shared_data.add_alert(alert)
+                
+        except Exception as e:
+            # ROS2 not available or other issues - clear data
+            shared_data.update_ros_nodes([])
+            shared_data.update_topic_metrics([])
+            shared_data.update_tf_frames([])
+    
+    def _do_ros_discovery_only(self, shared_data: SharedDataStore):
+        """Perform ROS discovery without Hz collection (for initial setup)."""
+        try:
+            nodes = self._discover_ros_nodes()
+            tf_frames = self._get_tf_frames()
+            
+            # Create empty topic metrics for initial display
+            topics = []
+            
+            shared_data.update_ros_nodes(nodes)
+            shared_data.update_topic_metrics(topics)
+            shared_data.update_tf_frames(tf_frames)
+            
+        except Exception:
+            # ROS2 not available - clear data
+            shared_data.update_ros_nodes([])
+            shared_data.update_topic_metrics([])
+            shared_data.update_tf_frames([])
+
     def _do_ros_collection(self, shared_data: SharedDataStore):
         """Perform one ROS collection cycle."""
         try:
@@ -131,6 +190,42 @@ class ROSCollector:
     def trigger_manual_refresh(self):
         """Trigger an immediate collection cycle."""
         self.manual_refresh_requested = True
+        print(f"DEBUG: ROSCollector manual refresh triggered")
+    
+    def start_collection_window(self, shared_data: SharedDataStore):
+        """Start a new Hz collection window."""
+        self.collection_window_start_time = time.time()
+        self.collection_active = True
+        # Clear previous window data
+        self.collection_window_timestamps.clear()
+        
+        # Add alert message
+        from ..data_models import SystemAlert
+        from datetime import datetime
+        alert = SystemAlert(
+            "INFO",
+            "Starting Hz collection...",
+            datetime.now(),
+            "ROS"
+        )
+        shared_data.add_alert(alert)
+    
+    def stop_collection_window(self, shared_data: SharedDataStore):
+        """Stop the current Hz collection window."""
+        self.collection_active = False
+        duration = self.config.collection_intervals.hz_collection_duration
+        self.collection_window_start_time = None
+        
+        # Add alert message
+        from ..data_models import SystemAlert
+        from datetime import datetime
+        alert = SystemAlert(
+            "INFO",
+            f"Hz collection complete ({duration}s)",
+            datetime.now(),
+            "ROS"
+        )
+        shared_data.add_alert(alert)
     
     def _setup_topic_subscribers(self):
         """Setup subscribers for all available topics to track frequency."""
@@ -170,26 +265,31 @@ class ROSCollector:
     def _topic_callback(self, topic_name: str):
         """Callback for topic messages to track frequency."""
         current_time = time.time()
-        self.timestamps[topic_name].append(current_time)
+        
+        # Only collect timestamps during active collection windows
+        if self.collection_active:
+            self.collection_window_timestamps[topic_name].append(current_time)
+        
+        # Still maintain message counts for compatibility
         self.message_counts[topic_name] += 1
     
     def _calculate_topic_hz(self, topic_name: str) -> float:
-        """Calculate Hz for a specific topic based on message timestamps."""
-        if topic_name not in self.timestamps or len(self.timestamps[topic_name]) < 2:
+        """Calculate Hz for a specific topic based on windowed collection."""
+        if topic_name not in self.collection_window_timestamps:
             return 0.0
             
-        timestamps = list(self.timestamps[topic_name])
+        timestamps = self.collection_window_timestamps[topic_name]
         if len(timestamps) < 2:
             return 0.0
-            
-        # Calculate time span
-        time_span = timestamps[-1] - timestamps[0]
-        if time_span == 0:
+        
+        # Calculate time span of the collection window
+        window_duration = self.config.collection_intervals.hz_collection_duration
+        if window_duration <= 0:
             return 0.0
-            
-        # Calculate frequency
-        num_messages = len(timestamps) - 1
-        hz = num_messages / time_span
+        
+        # Calculate frequency: messages per second during the window
+        message_count = len(timestamps)
+        hz = message_count / window_duration
         
         return hz
     
@@ -261,8 +361,11 @@ class ROSCollector:
                             topic_name = parts[0]
                             msg_type = parts[-1]  # Take the last part as message type
                             
+                            # Clean up message type formatting (remove brackets, etc.)
+                            msg_type = msg_type.strip('[](){}')
+                            
                             # Calculate frequency if we have subscription data
-                            frequency_hz = self._calculate_topic_hz(topic_name) if topic_name in self.timestamps else 0.0
+                            frequency_hz = self._calculate_topic_hz(topic_name) if topic_name in self.collection_window_timestamps else 0.0
                             
                             # Determine status based on frequency
                             status = "OK"

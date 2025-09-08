@@ -46,6 +46,10 @@ class SystemCollector:
             metrics = self._collect_system_metrics(shared_data)
             shared_data.update_system_metrics(metrics)
             
+            # Collect process information
+            processes = self._get_ros_processes()
+            shared_data.update_processes(processes)
+            
             # Generate alerts based on thresholds
             alerts = self._check_thresholds(metrics)
             for alert in alerts:
@@ -128,3 +132,46 @@ class SystemCollector:
                                     datetime.now(), "SYSTEM"))
         
         return alerts
+    
+    def _get_ros_processes(self):
+        """Get list of ROS-related processes."""
+        try:
+            ros_processes = []
+            ros_keywords = [
+                "ros2", "rviz", "gazebo", "navigation", "moveit", "rqt",
+                "robot_state", "joint_state", "launch", "python3"
+            ]
+            
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'cpu_percent', 'memory_percent']):
+                try:
+                    proc_info = proc.info
+                    proc_name = proc_info['name'].lower()
+                    cmdline = ' '.join(proc_info['cmdline']).lower() if proc_info['cmdline'] else ''
+                    
+                    # Check if process is ROS-related
+                    is_ros_process = any(
+                        keyword in proc_name or keyword in cmdline
+                        for keyword in ros_keywords
+                    )
+                    
+                    if is_ros_process:
+                        # Get CPU percentage
+                        try:
+                            cpu_pct = proc.cpu_percent(interval=0.01)  # Faster interval for UI
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            cpu_pct = 0.0
+                            
+                        ros_processes.append({
+                            'pid': proc_info['pid'],
+                            'name': proc_info['name'],
+                            'cpu_percent': cpu_pct,
+                            'memory_percent': proc_info['memory_percent'] or 0.0
+                        })
+                        
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+                    
+            return ros_processes
+            
+        except Exception:
+            return []

@@ -22,7 +22,6 @@ class DisplayManager(App):
         background: black;
         color: white;
         text-align: left;
-        border-bottom: white;
     }
     
     #left {
@@ -38,14 +37,14 @@ class DisplayManager(App):
         width: auto;
         min-width: 25;
         max-width: 40;
-        background: black;
+        background: #0a0a0a;
         color: white;
-        border: white;
+        margin: 0 1;
     }
     
     #nodes_table > .datatable--header {
-        background: #333333;
-        color: white;
+        background: black;
+        color: bright_cyan;
         text-style: bold;
     }
     
@@ -70,23 +69,23 @@ class DisplayManager(App):
         width: auto;
         min-width: 40;
         max-width: 60;
-        background: black;
+        background: #0a0a0a;
         color: white;
-        border: white;
+        margin: 0 1;
     }
     
     #processes_table {
         height: auto;
         width: auto;
         min-width: 50;
-        background: black;
+        background: #141414;
         color: white;
-        border: white;
+        margin: 0 1;
     }
     
     #topics_table > .datatable--header {
-        background: #333333;
-        color: white;
+        background: black;
+        color: bright_magenta;
         text-style: bold;
     }
     
@@ -99,8 +98,8 @@ class DisplayManager(App):
     }
     
     #processes_table > .datatable--header {
-        background: #333333;
-        color: white;
+        background: black;
+        color: bright_yellow;
         text-style: bold;
     }
     
@@ -123,14 +122,14 @@ class DisplayManager(App):
     #tf_table {
         height: auto;
         width: 1fr;
-        background: black;
+        background: #141414;
         color: white;
-        border: white;
+        margin: 0 1;
     }
     
     #tf_table > .datatable--header {
-        background: #333333;
-        color: white;
+        background: black;
+        color: bright_green;
         text-style: bold;
     }
     
@@ -143,11 +142,10 @@ class DisplayManager(App):
     }
     
     #alerts {
-        height: 5;
+        height: 10;
         background: black;
         color: white;
         text-align: left;
-        border-top: white;
         dock: bottom;
     }
     
@@ -180,22 +178,23 @@ class DisplayManager(App):
         with Vertical():
             yield Static("Loading system metrics...", id="header")
             
-            with Horizontal(classes="body"):
-                # Mode 2 panes (initially hidden) - Nodes, Processes
-                nodes_table = DataTable(id="nodes_table", classes="hidden")
-                nodes_table.add_columns("Node Name")
-                yield nodes_table
-                processes_table = DataTable(id="processes_table", classes="hidden")
-                processes_table.add_columns("PID", "Process", "CPU%", "Mem%")
-                yield processes_table
-                
-                # Mode 1 panes (default visible) - Topics, TF Frames
+            # Mode 1 container (default visible) - Horizontal layout for Topics and TF Frames
+            with Horizontal(id="mode1_container", classes="body"):
                 topics_table = DataTable(id="topics_table")
-                topics_table.add_columns("Topic", "Type", "Hz", "Status")
+                topics_table.add_columns("Topic", "Type", "Hz")
                 yield topics_table
                 tf_table = DataTable(id="tf_table")
                 tf_table.add_columns("Frame", "Parent", "Recent")
                 yield tf_table
+            
+            # Mode 2 container (initially hidden) - Horizontal layout for Nodes and Processes
+            with Horizontal(id="mode2_container", classes="body hidden"):
+                nodes_table = DataTable(id="nodes_table")
+                nodes_table.add_columns("Node Name")
+                yield nodes_table
+                processes_table = DataTable(id="processes_table")
+                processes_table.add_columns("PID", "Process", "CPU%", "Mem%")
+                yield processes_table
             
             yield Static("No alerts", id="alerts")
             yield Static(self._create_help_panel(), id="help")
@@ -251,23 +250,19 @@ class DisplayManager(App):
 
     def _switch_to_mode_2_panes(self):
         """Switch to mode 2 panes (Nodes, Processes)."""
-        # Show mode 2 panes
-        self.query_one("#nodes_table").remove_class("hidden")
-        self.query_one("#processes_table").remove_class("hidden")
+        # Show mode 2 container
+        self.query_one("#mode2_container").remove_class("hidden")
         
-        # Hide mode 1 panes
-        self.query_one("#topics_table").add_class("hidden")
-        self.query_one("#tf_table").add_class("hidden")
+        # Hide mode 1 container
+        self.query_one("#mode1_container").add_class("hidden")
 
     def _switch_to_mode_1_panes(self):
         """Switch to mode 1 panes (Topics, TF Frames)."""
-        # Hide mode 2 panes
-        self.query_one("#nodes_table").add_class("hidden")
-        self.query_one("#processes_table").add_class("hidden")
+        # Hide mode 2 container
+        self.query_one("#mode2_container").add_class("hidden")
         
-        # Show mode 1 panes
-        self.query_one("#topics_table").remove_class("hidden")
-        self.query_one("#tf_table").remove_class("hidden")
+        # Show mode 1 container
+        self.query_one("#mode1_container").remove_class("hidden")
 
     def _update_ros_panels(self, nodes, topics, tf_frames):
         """Update the Mode 1 panels."""
@@ -614,8 +609,8 @@ class DisplayManager(App):
         if not alerts:
             return "No alerts"
 
-        # Show last few alerts (fit within panel height)
-        recent_alerts = list(alerts)[-6:]
+        # Show last few alerts (fit within panel height - doubled from 6 to 12)
+        recent_alerts = list(alerts)[-9:]
         alert_lines = []
 
         for alert in recent_alerts:
@@ -627,12 +622,12 @@ class DisplayManager(App):
                 "INFO": "INF"
             }.get(alert.level, alert.level)
             
-            # Create alert line (keep it short for display)
+            # Create alert line with more reasonable length
             alert_line = f"[{level_indicator}] {time_str} - {alert.message}"
             
-            # Truncate if too long
-            if len(alert_line) > 50:
-                alert_line = alert_line[:47] + "..."
+            # Truncate if too long (increased from 50 to 120 characters)
+            if len(alert_line) > 120:
+                alert_line = alert_line[:117] + "..."
                 
             alert_lines.append(alert_line)
         
@@ -658,7 +653,7 @@ class DisplayManager(App):
             
             if not topics:
                 # Add a single row indicating no topics
-                topics_table.add_row("No topics", "N/A", "0.0", "IDLE")
+                topics_table.add_row("No topics", "N/A", "0.0")
                 return
             
             # Sort topics by frequency (highest first)
@@ -668,31 +663,21 @@ class DisplayManager(App):
             for topic in sorted_topics:
                 # Format topic name (truncate if too long)
                 topic_name = topic.name
-                if len(topic_name) > 35:
-                    topic_name = topic_name[:32] + "..."
+                if len(topic_name) > 45:
+                    topic_name = topic_name[:42] + "..."
                 
                 # Format message type (show just the message name)
                 msg_type = topic.msg_type.split('/')[-1] if '/' in topic.msg_type else topic.msg_type
-                if len(msg_type) > 15:
-                    msg_type = msg_type[:12] + "..."
+                if len(msg_type) > 20:
+                    msg_type = msg_type[:17] + "..."
                 
                 # Format frequency
                 freq_str = f"{topic.frequency_hz:.1f}"
                 
-                # Status with color indicators
-                status = topic.status
-                if status == "IDLE":
-                    status = "🔴 IDLE"
-                elif status == "SLOW":
-                    status = "🟡 SLOW"
-                else:
-                    status = "🟢 OK"
-                
                 topics_table.add_row(
                     topic_name,
                     msg_type,
-                    freq_str,
-                    status
+                    freq_str
                 )
                 
         except Exception as e:
@@ -700,7 +685,7 @@ class DisplayManager(App):
             try:
                 topics_table = self.query_one("#topics_table")
                 topics_table.clear()
-                topics_table.add_row("Error", "N/A", "0.0", f"ERR: {str(e)[:10]}")
+                topics_table.add_row("Error", "N/A", "0.0")
             except:
                 pass
 

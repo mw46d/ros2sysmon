@@ -10,6 +10,7 @@ collection_intervals:
   network_ping: 2.0        # More frequent ping
   ros_discovery: 1.0       # Faster ROS discovery
   ros_callbacks: 0.05      # More responsive ROS callbacks
+  hz_collection_duration: 1.0  # Short Hz collection for fast updates
 
 # System thresholds
 thresholds:
