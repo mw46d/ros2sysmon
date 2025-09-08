@@ -245,10 +245,15 @@ class ROSCollector:
                         
                         # Import and create subscriber
                         msg_class = get_message(topic_type)
+                        
+                        # Create callback function that properly captures topic_name
+                        def make_callback(topic):
+                            return lambda msg: self._topic_callback(topic)
+                        
                         subscriber = self.node.create_subscription(
                             msg_class,
                             topic_name,
-                            lambda msg, t=topic_name: self._topic_callback(t),
+                            make_callback(topic_name),
                             qos_profile=qos_profile_sensor_data
                         )
                         

@@ -2,7 +2,6 @@
 
 import time
 import signal
-import psutil
 from datetime import datetime
 from textual.app import App
 from textual.containers import Vertical, Horizontal
@@ -44,7 +43,7 @@ class DisplayManager(App):
     
     #nodes_table > .datatable--header {
         background: black;
-        color: bright_cyan;
+        color: ansi_bright_cyan;
         text-style: bold;
     }
     
@@ -85,7 +84,7 @@ class DisplayManager(App):
     
     #topics_table > .datatable--header {
         background: black;
-        color: bright_magenta;
+        color: ansi_bright_magenta;
         text-style: bold;
     }
     
@@ -99,7 +98,7 @@ class DisplayManager(App):
     
     #processes_table > .datatable--header {
         background: black;
-        color: bright_yellow;
+        color: ansi_bright_yellow;
         text-style: bold;
     }
     
@@ -129,7 +128,7 @@ class DisplayManager(App):
     
     #tf_table > .datatable--header {
         background: black;
-        color: bright_green;
+        color: ansi_bright_green;
         text-style: bold;
     }
     
@@ -178,7 +177,7 @@ class DisplayManager(App):
         with Vertical():
             yield Static("Loading system metrics...", id="header")
             
-            # Mode 1 container (default visible) - Horizontal layout for Topics and TF Frames
+            # Screen 1 container (default visible) - Horizontal layout for Topics and TF Frames
             with Horizontal(id="mode1_container", classes="body"):
                 topics_table = DataTable(id="topics_table")
                 topics_table.add_columns("Topic", "Type", "Hz")
@@ -187,7 +186,7 @@ class DisplayManager(App):
                 tf_table.add_columns("Frame", "Parent", "Recent")
                 yield tf_table
             
-            # Mode 2 container (initially hidden) - Horizontal layout for Nodes and Processes
+            # Screen 2 container (initially hidden) - Horizontal layout for Nodes and Processes
             with Horizontal(id="mode2_container", classes="body hidden"):
                 nodes_table = DataTable(id="nodes_table")
                 nodes_table.add_columns("Node Name")
@@ -249,27 +248,27 @@ class DisplayManager(App):
         self._update_display()
 
     def _switch_to_mode_2_panes(self):
-        """Switch to mode 2 panes (Nodes, Processes)."""
-        # Show mode 2 container
+        """Switch to screen 2 panes (Nodes, Processes)."""
+        # Show screen 2 container
         self.query_one("#mode2_container").remove_class("hidden")
         
-        # Hide mode 1 container
+        # Hide screen 1 container
         self.query_one("#mode1_container").add_class("hidden")
 
     def _switch_to_mode_1_panes(self):
-        """Switch to mode 1 panes (Topics, TF Frames)."""
-        # Hide mode 2 container
+        """Switch to screen 1 panes (Topics, TF Frames)."""
+        # Hide screen 2 container
         self.query_one("#mode2_container").add_class("hidden")
         
-        # Show mode 1 container
+        # Show screen 1 container
         self.query_one("#mode1_container").remove_class("hidden")
 
     def _update_ros_panels(self, nodes, topics, tf_frames):
-        """Update the Mode 1 panels."""
-        # Update topics table (left in Mode 1)
+        """Update the Screen 1 panels."""
+        # Update topics table (left in Screen 1)
         self._update_topics_table(topics)
         
-        # Update TF frames table (right in Mode 1)
+        # Update TF frames table (right in Screen 1)
         self._update_tf_table(tf_frames)
 
     def _update_display(self):
@@ -278,12 +277,12 @@ class DisplayManager(App):
             return
             
         try:
-            metrics, nodes, topics, tf_frames, alerts = self.shared_data.get_system_data()
+            metrics, nodes, topics, tf_frames, processes, alerts = self.shared_data.get_system_data()
             
             # Update each panel with new data
             self._update_header_panel(metrics)
             self._update_nodes_table(nodes)
-            self._update_processes_table()
+            self._update_processes_table(processes)
             self._update_ros_panels(nodes, topics, tf_frames)
             self._update_alerts_panel(alerts)
             self._update_help_panel()
@@ -365,10 +364,6 @@ class DisplayManager(App):
             else:
                 interval_parts.append("ros:manual")
                 
-            if intervals.ros_callbacks > 0:
-                interval_parts.append(f"cb:{intervals.ros_callbacks}s")
-            else:
-                interval_parts.append("cb:manual")
             
             extra_info.append(f"Intervals: {' | '.join(interval_parts)}")
         
@@ -388,48 +383,6 @@ class DisplayManager(App):
         
         return "\n".join(lines)
 
-    def _get_ros_processes(self):
-        """Get list of ROS-related processes."""
-        try:
-            ros_processes = []
-            ros_keywords = [
-                "ros2", "rviz", "gazebo", "navigation", "moveit", "rqt",
-                "robot_state", "joint_state", "launch", "python3"
-            ]
-            
-            for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'cpu_percent', 'memory_percent']):
-                try:
-                    proc_info = proc.info
-                    proc_name = proc_info['name'].lower()
-                    cmdline = ' '.join(proc_info['cmdline']).lower() if proc_info['cmdline'] else ''
-                    
-                    # Check if process is ROS-related
-                    is_ros_process = any(
-                        keyword in proc_name or keyword in cmdline
-                        for keyword in ros_keywords
-                    )
-                    
-                    if is_ros_process:
-                        # Get CPU percentage
-                        try:
-                            cpu_pct = proc.cpu_percent(interval=0.01)  # Faster interval for UI
-                        except (psutil.NoSuchProcess, psutil.AccessDenied):
-                            cpu_pct = 0.0
-                            
-                        ros_processes.append({
-                            'pid': proc_info['pid'],
-                            'name': proc_info['name'],
-                            'cpu_percent': cpu_pct,
-                            'memory_percent': proc_info['memory_percent'] or 0.0
-                        })
-                        
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    continue
-                    
-            return ros_processes
-            
-        except Exception:
-            return []
 
     def _create_network_panel(self, metrics) -> str:
         """Create the network stats panel content."""
@@ -525,11 +478,7 @@ class DisplayManager(App):
                     dt = datetime.fromtimestamp(frame.most_recent_transform)
                     recent_time = dt.strftime("%H:%M:%S")
                 
-                # Add visual indicator for root frames
-                if frame.is_root:
-                    frame_name = f"🌳 {frame_name}"
-                else:
-                    frame_name = f"📄 {frame_name}"
+                # No visual indicators needed
                 
                 tf_table.add_row(
                     frame_name,
@@ -546,7 +495,7 @@ class DisplayManager(App):
             except:
                 pass
 
-    def _update_processes_table(self):
+    def _update_processes_table(self, processes):
         """Update the processes DataTable with current process data."""
         try:
             processes_table = self.query_one("#processes_table")
@@ -554,8 +503,8 @@ class DisplayManager(App):
             # Clear existing rows
             processes_table.clear()
             
-            # Get ROS-related processes
-            ros_processes = self._get_ros_processes()
+            # Use processes from shared data
+            ros_processes = processes
             
             if not ros_processes:
                 # Add a single row indicating no processes

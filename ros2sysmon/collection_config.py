@@ -8,5 +8,4 @@ class CollectionConfig:
     system_metrics: float
     network_ping: float
     ros_discovery: float
-    ros_callbacks: float
     hz_collection_duration: float

@@ -15,6 +15,7 @@ class SharedDataStore:
         self.ros_nodes: List[ROSNodeInfo] = []
         self.topic_metrics: List[TopicMetrics] = []
         self.tf_frames: List[TFFrameInfo] = []
+        self.processes: List[dict] = []
         self.alerts = deque(maxlen=50)
     
     def update_system_metrics(self, metrics: SystemMetrics):
@@ -37,6 +38,11 @@ class SharedDataStore:
         with self._lock:
             self.tf_frames = frames.copy()
     
+    def update_processes(self, processes: List[dict]):
+        """Update process list in a thread-safe manner."""
+        with self._lock:
+            self.processes = processes.copy()
+    
     def add_alert(self, alert: SystemAlert):
         """Add an alert to the alert queue."""
         with self._lock:
@@ -50,5 +56,6 @@ class SharedDataStore:
                 self.ros_nodes.copy(),
                 self.topic_metrics.copy(),
                 self.tf_frames.copy(),
+                self.processes.copy(),
                 list(self.alerts)
             )

@@ -9,7 +9,6 @@ collection_intervals:
   system_metrics: 5.0      # Regular system monitoring
   network_ping: 0.0        # One-shot network check (use 'r' to refresh)
   ros_discovery: 0.0       # One-shot ROS discovery (use 'r' to refresh)
-  ros_callbacks: 0.0       # No ROS processing (use 'r' for updates)
   hz_collection_duration: 5.0  # Duration to collect Hz data when refreshed
 
 # System thresholds
