@@ -1,6 +1,10 @@
 # ROS2 System Monitor
 
 A terminal-based system monitor for ROS2 environments with real-time system metrics, ROS node/topic monitoring, and TF frame tracking.
+
+**Version 0.1 - Still has bugs and design flaws**
+
+
 ![ROS2 System Monitor Screenshot](screenshot.png)
 ## Installation
 
