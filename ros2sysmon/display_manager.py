@@ -180,7 +180,7 @@ class DisplayManager(App):
             # Screen 1 container (default visible) - Horizontal layout for Topics and TF Frames
             with Horizontal(id="mode1_container", classes="body"):
                 topics_table = DataTable(id="topics_table")
-                topics_table.add_columns("Topic", "Type", "Hz")
+                topics_table.add_columns("Topic", "Type", "Hz", "Count")
                 yield topics_table
                 tf_table = DataTable(id="tf_table")
                 tf_table.add_columns("Frame", "Parent", "Recent")
@@ -326,7 +326,8 @@ class DisplayManager(App):
         
         # Column 2 (right side)
         col2 = []
-        col2.append(f"Mode: {self.display_mode.upper()}")
+        from . import __version__
+        col2.append(f"ROS2 SysMon v{__version__} - Mode: {self.display_mode.upper()}")
         col2.append(f"Load: {metrics.load_average[0]:.2f}")
         col2.append(f"Uptime: {metrics.uptime}")
         
@@ -602,7 +603,7 @@ class DisplayManager(App):
             
             if not topics:
                 # Add a single row indicating no topics
-                topics_table.add_row("No topics", "N/A", "0.0")
+                topics_table.add_row("No topics", "N/A", "0.0", "0")
                 return
             
             # Sort topics by frequency (highest first)
@@ -621,12 +622,13 @@ class DisplayManager(App):
                     msg_type = msg_type[:17] + "..."
                 
                 # Format frequency
-                freq_str = f"{topic.frequency_hz:.1f}"
+                freq_str = f"{topic.frequency_hz:.2f}"
                 
                 topics_table.add_row(
                     topic_name,
                     msg_type,
-                    freq_str
+                    freq_str,
+                    str(topic.message_count)
                 )
                 
         except Exception as e:
@@ -634,7 +636,7 @@ class DisplayManager(App):
             try:
                 topics_table = self.query_one("#topics_table")
                 topics_table.clear()
-                topics_table.add_row("Error", "N/A", "0.0")
+                topics_table.add_row("Error", "N/A", "0.0", "0")
             except:
                 pass
 

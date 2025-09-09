@@ -1,246 +1,111 @@
-# ros2sysmon - ROS2 System Monitor
+# ROS2 System Monitor
 
-A command-line system monitor for ROS2 that displays real-time system and ROS-specific metrics in a beautiful terminal dashboard.
-
-![ros2sysmon dashboard](screenshot.png)
-
-## Features
-
-- **Real-time System Monitoring**: CPU, memory, disk usage with visual progress bars
-- **Network Latency**: Continuous ping monitoring to detect connectivity issues  
-- **Temperature Monitoring**: System thermal sensors (CPU, thermal zones)
-- **System Alerts**: Configurable thresholds with color-coded warnings
-- **Rich Terminal UI**: Beautiful full-screen dashboard using Rich library
-- **ROS2 Integration**: Built as a proper ROS2 package with colcon build system
-- **Extensible Architecture**: Easy to add new collectors and display panels
+A terminal-based system monitor for ROS2 environments with real-time system metrics, ROS node/topic monitoring, and TF frame tracking.
 
 ## Installation
 
 ### Prerequisites
-
 - ROS2 (Humble, Iron, or Jazzy)
 - Python 3.8+
-- colcon build tools
 
-### Dependencies
-
-The following Python packages will be installed automatically:
-- `rich>=12.0.0` - Terminal UI library
-- `psutil>=5.8.0` - System metrics collection
-- `pyyaml>=6.0` - Configuration file parsing
-
-### Build Instructions
-
-1. Clone or place the package in your ROS2 workspace:
-```bash
-cd ~/your_ros2_workspace/src
-# Place ros2sysmon directory here
-```
-
-2. Build the package:
+### Build
 ```bash
 cd ~/your_ros2_workspace
 colcon build --packages-select ros2sysmon
-```
-
-3. Source the workspace:
-```bash
 source install/setup.bash
 ```
 
-## Running ros2sysmon
+## Usage
 
-### Basic Usage
-
-Run the system monitor with default settings:
 ```bash
+# Basic usage
 ros2 run ros2sysmon ros2sysmon
+
+# With options
+ros2 run ros2sysmon ros2sysmon --config /path/to/config.yaml --refresh-rate 3.0
 ```
 
-Or use the shorter alias:
-```bash
-ros2 run ros2sysmon run
-```
+### Controls
+- **`1`** - Topics + TF frames view
+- **`2`** - ROS nodes + processes view  
+- **`r`** - Manual refresh/collect data
+- **`x`/`q`** - Exit
 
-### Command Line Options
+## Display
 
-- `--config PATH` - Specify custom configuration file
-- `--refresh-rate SECONDS` - Set update interval (default: 1.0)
-- `--no-color` - Disable colored output
+### Header Panel
+System metrics with ASCII progress bars:
+- CPU/Memory/Disk usage with visual bars
+- Load average, uptime, temperature
+- Network latency to 8.8.8.8
 
-### Examples
+### Two Display Modes
+1. **Mode 1**: ROS Topics (Hz, Count) + TF Frames
+2. **Mode 2**: ROS Nodes + System Processes (filtered for ROS)
 
-```bash
-# Run with faster refresh rate
-ros2 run ros2sysmon run --refresh-rate 0.5
-
-# Use custom configuration
-ros2 run ros2sysmon run --config /path/to/custom_config.yaml
-
-# Slower updates for less system load
-ros2 run ros2sysmon run --refresh-rate 2.0
-```
-
-### Exiting
-
-Press `Ctrl+C` to exit cleanly.
+### Alerts Panel
+System alerts with timestamps for threshold violations.
 
 ## Metric Calculations
 
-### CPU Usage (`cpu_percent`)
-- **Method**: `psutil.cpu_percent(interval=0.1)`
-- **Calculation**: Percentage of CPU time used across all cores during a 0.1-second sampling interval
-- **Range**: 0-100% (can exceed 100% on multi-core systems when averaged)
-- **Update Frequency**: Every refresh cycle (default 1 second)
-- **Notes**: Brief 0.1s blocking call for accurate measurement
+### System Metrics
+- **CPU**: `psutil.cpu_percent(interval=0.1)` - 100ms sampling
+- **Memory**: `psutil.virtual_memory().percent` - available vs total
+- **Disk**: `psutil.disk_usage('/').percent` - root filesystem usage
+- **Temperature**: `psutil.sensors_temperatures()` - from `coretemp`/`cpu_thermal`
+- **Load Average**: `psutil.getloadavg()[0]` - 1-minute load
+- **Uptime**: `time.time() - psutil.boot_time()` formatted as HH:MM
+- **Network Latency**: `ping -c 1 -W 2 8.8.8.8` parsed from output
 
-### Memory Usage (`memory_percent`)
-- **Method**: `psutil.virtual_memory().percent`
-- **Calculation**: `(total - available) / total * 100`
-- **Components**: 
-  - `total`: Total physical RAM
-  - `available`: Memory available for new processes (includes buffers/cache)
-- **Range**: 0-100%
-- **Notes**: Uses "available" memory which accounts for Linux buffer/cache that can be reclaimed
+### ROS Metrics
+- **Nodes**: Discovered via `ros2 node list` (10s timeout)
+- **Topics**: Discovered via `ros2 topic list -t` (5s timeout)
+- **Topic Hz**: 
+  - Creates ROS2 subscribers for all available topics
+  - Collects message timestamps during windowed collection (default 3s)
+  - Calculates frequency as: `message_count / collection_window_duration`
+  - Shows 2 decimal precision
+- **TF Frames**: Retrieved via `tf2_ros.Buffer.all_frames_as_yaml()`
+- **Processes**: Filters system processes for ROS-related keywords
 
-### Disk Usage (`disk_percent`)
-- **Method**: `psutil.disk_usage('/').percent`
-- **Calculation**: `used / total * 100` for root filesystem
-- **Target**: Root filesystem (`/`)
-- **Range**: 0-100%
-- **Notes**: Only monitors the root partition; does not include other mounted filesystems
-
-### System Load Average (`load_average`)
-- **Method**: `psutil.getloadavg()`
-- **Values**: Returns tuple of (1min, 5min, 15min) load averages
-- **Calculation**: Number of processes waiting for CPU or I/O, averaged over time periods
-- **Display**: Shows 1-minute load average
-- **Interpretation**: 
-  - `< 1.0`: System not fully utilized
-  - `= 1.0`: System fully utilized 
-  - `> 1.0`: System overloaded (on single-core systems)
-
-### Temperature (`temperature`)
-- **Method**: `psutil.sensors_temperatures()`
-- **Sources Checked** (in order):
-  1. `coretemp` - Intel CPU temperature sensors
-  2. `cpu_thermal` - ARM/generic CPU thermal zones
-- **Calculation**: Current temperature from first available sensor
-- **Units**: Degrees Celsius (°C)
-- **Fallback**: `None` if no temperature sensors available
-- **Notes**: Returns first sensor reading; may vary by hardware
-
-### System Uptime (`uptime`)
-- **Method**: `time.time() - psutil.boot_time()`
-- **Calculation**: Current time minus system boot time
-- **Format**: `HH:MM` (hours:minutes)
-- **Precision**: Truncated to minutes for display
-- **Source**: System boot timestamp from `/proc/stat` or equivalent
-
-### Battery Level (`battery_percent`)
-- **Method**: `psutil.sensors_battery()`
-- **Calculation**: Current battery charge percentage
-- **Range**: 0-100%
-- **Availability**: Only on systems with battery (laptops, UPS)
-- **Fallback**: `None` if no battery detected
-- **Notes**: May not be available on desktop systems or VMs
-
-### Network Latency (`network_latency`)
-- **Method**: `subprocess.run(['ping', '-c', '1', '-W', '2', '8.8.8.8'])`
-- **Target**: Google DNS (8.8.8.8)
-- **Calculation**: Round-trip time from ping output parsing
-- **Pattern**: Extracts `time=X.XXXms` from ping response
-- **Units**: Milliseconds (ms)
-- **Frequency**: Every 5 seconds (not every refresh cycle)
-- **Timeout**: 2-second wait, 3-second total timeout
-- **Fallback**: `None` if ping fails (network down, timeout, etc.)
-- **Notes**: Uses system `ping` command; requires network connectivity
-
-## Alert Thresholds
-
-Configurable warning and error thresholds in `config/default_config.yaml`:
-
-### System Thresholds
-- **CPU**: Warn at 70%, Error at 85%
-- **Memory**: Warn at 75%, Error at 90%  
-- **Disk**: Warn at 80%, Error at 95%
-- **Temperature**: Warn at 70°C, Error at 85°C
-- **Network Latency**: Warn at 100ms, Error at 500ms
-
-### Alert Generation
-- Alerts are generated when metrics exceed thresholds
-- **WARN** (yellow): Performance degradation expected
-- **ERROR** (red): Critical resource exhaustion
-- Alerts persist in bottom panel with timestamps
-- Maximum 50 alerts stored, older alerts are rotated out
+### Target Frequencies (for alerts)
+- `/cmd_vel`, `/twist`: 10Hz
+- `/odom`: 30Hz  
+- `/scan`, lidar topics: 10Hz
+- `/image*`, camera topics: 30Hz
+- `/imu`: 100Hz
+- `/tf`: 100Hz
 
 ## Configuration
 
-### Default Configuration File
-Located at `config/default_config.yaml`:
+Default config: `share/ros2sysmon/config/default_config.yaml`
 
-```yaml
-# Refresh and display settings
-refresh_rate: 1.0  # seconds
-max_alerts: 10
-max_nodes_display: 15
-max_topics_display: 10
+### Collection Intervals
+- **system_metrics**: 5.0s - CPU, memory, disk, temperature
+- **network_ping**: 5.0s - Network latency checks
+- **ros_discovery**: 10.0s - Node/topic discovery
+- **hz_collection_duration**: 3.0s - Hz measurement window
 
-# System thresholds
-thresholds:
-  cpu_warn: 70.0
-  cpu_error: 85.0
-  memory_warn: 75.0
-  memory_error: 90.0
-  disk_warn: 80.0
-  disk_error: 95.0
-  temperature_warn: 70.0
-  temperature_error: 85.0
-  network_latency_warn: 100  # ms
-  network_latency_error: 500
-
-# Display preferences  
-display:
-  show_colors: true
-  show_progress_bars: true
-  time_format: "%H:%M:%S"
-```
-
-### Custom Configuration
-Create a custom YAML file and use `--config` option to override defaults.
+### Alert Thresholds
+- **CPU**: Warn 70%, Error 85%
+- **Memory**: Warn 75%, Error 90%
+- **Disk**: Warn 80%, Error 95%  
+- **Temperature**: Warn 70°C, Error 85°C
+- **Network**: Warn 100ms, Error 500ms
 
 ## Architecture
 
-### Components
-- **DataCollectionManager**: Coordinates multiple collector threads
-- **SystemCollector**: Gathers CPU, memory, disk, temperature metrics
-- **NetworkCollector**: Monitors network latency via ping
-- **DisplayManager**: Rich-based terminal UI with live updates
-- **SharedDataStore**: Thread-safe data exchange between collectors and display
+- **Textual** framework for terminal UI
+- **Threading**: Separate collectors for system, network, and ROS data
+- **SharedDataStore**: Thread-safe data exchange
+- **Manual/Timed Collection**: Configurable collection intervals
 
-### Threading Model
-- Main thread: UI rendering and user input
-- System collector thread: Updates every refresh cycle
-- Network collector thread: Pings every 5 seconds
-- All threads coordinate via SharedDataStore with locks
+## Dependencies
 
-## Future Features
-
-- **ROS2 Node Monitor**: Display running ROS2 nodes with resource usage
-- **Topic Metrics**: Monitor ROS2 topic frequencies and bandwidth
-- **Service Discovery**: Track available ROS2 services
-- **Custom Collectors**: Plugin architecture for additional metrics
-- **Export Functionality**: Save metrics to CSV/JSON files
-
-## Contributing
-
-This package follows ROS2 development practices:
-- Use `colcon build` for building
-- Follow ROS2 package structure
-- Maintain compatibility with ROS2 LTS releases
-- Keep functions under 50 lines (see `claude.md`)
-- Use idiomatic Python with type hints
+**ROS2**: `rclpy`, `tf2_ros`, `rosidl_runtime_py`  
+**System**: `psutil`, `pyyaml`, `textual`  
+**Standard**: `subprocess`, `threading`, `dataclasses`
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT

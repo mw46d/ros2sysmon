@@ -204,7 +204,7 @@ class ROSCollector:
         from datetime import datetime
         alert = SystemAlert(
             "INFO",
-            "Starting Hz collection...",
+            "Starting ROS data collection...",
             datetime.now(),
             "ROS"
         )
@@ -221,7 +221,7 @@ class ROSCollector:
         from datetime import datetime
         alert = SystemAlert(
             "INFO",
-            f"Hz collection complete ({duration}s)",
+            f"ROS data collection complete ({duration}s)",
             datetime.now(),
             "ROS"
         )
