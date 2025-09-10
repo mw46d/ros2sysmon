@@ -175,7 +175,7 @@ class DisplayManager(App):
     def compose(self):
         """Create the layout structure."""
         with Vertical():
-            yield Static("Loading system metrics...", id="header")
+            yield Static("Loading system metrics...", id="header", markup = False)
             
             # Screen 1 container (default visible) - Horizontal layout for Topics and TF Frames
             with Horizontal(id="mode1_container", classes="body"):
