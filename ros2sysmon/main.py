@@ -13,20 +13,15 @@ from .display_manager import DisplayManager
 def main():
     """Main entry point for the application."""
     parser = argparse.ArgumentParser(description="ROS2 System Monitor")
-    
-    # Get default config path from ROS2 package
-    try:
-        package_share = get_package_share_directory('ros2sysmon')
-        default_config = os.path.join(package_share, 'config', 'default_config.yaml')
-    except:
-        default_config = "config/default_config.yaml"
+    package_share = get_package_share_directory('ros2sysmon')
+    default_config = os.path.join(package_share, 'config', 'default_config.yaml')
     
     parser.add_argument("--config", default=default_config)
     parser.add_argument("--refresh-rate", type=float, default=5.0)
     parser.add_argument("--no-color", action="store_true")
     args = parser.parse_args()
     
-    print(f"ros2top starting...")
+    print("ros2sysmon starting...")
     print(f"Using config: {args.config}")
     
     # Initialize ROS2 

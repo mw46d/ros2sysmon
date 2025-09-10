@@ -48,17 +48,17 @@ class ROSCollector:
         # Initialize ROS2 node in the collection thread
         try:
             self.node = Node('ros2sysmon_collector')
-            # print("ROS Collector: Successfully created ROS2 node")
+
             # Setup TF listener
             self.tf_buffer = Buffer()
             self.tf_listener = TransformListener(self.tf_buffer, self.node)
-            # print("ROS Collector: Successfully created TF listener")
+
             # Setup topic subscribers on first run
             self._setup_topic_subscribers()
             # print("ROS Collector: Successfully setup topic subscribers")
+
         except Exception as e:
             # ROS2 context not available - run without ROS features
-            # print(f"ROS Collector: Failed to initialize ROS2 node: {e}")
             self.node = None
             self.tf_buffer = None
             self.tf_listener = None
@@ -85,7 +85,7 @@ class ROSCollector:
             # Zero interval: run once and wait for manual refresh
             while running.is_set():
                 if self.manual_refresh_requested:
-                    print(f"DEBUG: Processing manual refresh request")
+                    print("DEBUG: Processing manual refresh request")
                     self.manual_refresh_requested = False
                     self._do_windowed_collection(shared_data, hz_duration)
                 

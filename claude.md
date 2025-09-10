@@ -10,3 +10,6 @@
 * use python latest and ros2 compliant package management and building with colcon
 * prefer async/await over threading when there is a choice
 * avoid if/else statements that are nested more than 1 deep
+* avoid 1 line methods
+* look for code duplication and make the code DRY if it makes sense
+
