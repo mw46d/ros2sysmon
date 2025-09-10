@@ -2,7 +2,11 @@
 
 A terminal-based system monitor for ROS2 environments with real-time system metrics, ROS node/topic monitoring, and TF frame tracking.
 
-**Version 0.1 - Still has bugs and design flaws**
+## Current Status
+
+* Version 0.1 - Still has bugs and design flaws
+* Verified to work running on Ubuntu 24.04
+* Requires separate insteallation of python library textual
 
 
 ![ROS2 System Monitor Screenshot](screenshot.png)
@@ -11,10 +15,24 @@ A terminal-based system monitor for ROS2 environments with real-time system metr
 ### Prerequisites
 - ROS2 (Humble, Iron, or Jazzy)
 - Python 3.8+
+- Python library textual
+
+### Installing textual
+You may find that `pip install textual` gives an error `error: externally-managed-environment`. I have found that if you can get around this with `pip install textual --break-system-packages`. NB: I am not positive how that works and can't guarantee that it is safe. It's worked for me and several otehrs.
+
+### Installing ros2sysmon
+
+Like many other ROS2 apps:
+
+```
+cd ros2_ws/src
+git clone https://github.com/pitosalas/ros2sysmon.git
+```
 
 ### Build
 ```bash
 cd ~/your_ros2_workspace
+source ~/your_ros2_workspace/setup.basj
 colcon build --packages-select ros2sysmon
 source install/setup.bash
 ```
