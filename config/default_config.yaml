@@ -35,7 +35,6 @@ ros:
       target_frequency: 20.0
       measure_hz: true
       display: true
-      display: true
     - name: "/cmd_vel"
       target_frequency: 1.0
       measure_hz: false
