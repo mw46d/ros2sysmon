@@ -6,10 +6,69 @@ from datetime import datetime
 from textual.app import App
 from textual.containers import Vertical, Horizontal
 from textual.widgets import Static, DataTable
+from textual.screen import ModalScreen
 from typing import List, Optional
 from .shared_data import SharedDataStore
 from .data_models import SystemAlert, SystemMetrics, ROSNodeInfo, TopicMetrics, TFFrameInfo
 from .config import Config
+
+
+class HelpScreen(ModalScreen):
+    """Modal screen to display help text."""
+
+    CSS = """
+    HelpScreen {
+        align: center middle;
+    }
+
+    HelpScreen > Vertical {
+        background: $surface;
+        border: thick $primary;
+        width: 60;
+        height: auto;
+        padding: 1;
+    }
+
+    #help_title {
+        text-align: center;
+        text-style: bold;
+        color: $primary;
+    }
+
+    #help_content {
+        margin: 1 0;
+        text-align: center;
+    }
+
+    #help_footer {
+        text-align: center;
+        color: $text-muted;
+        text-style: italic;
+    }
+    """
+
+    def compose(self):
+        with Vertical():
+            yield Static("Help", id="help_title")
+            yield Static("", id="help_content")
+            yield Static("Press any key to close", id="help_footer")
+
+    def on_mount(self):
+        """Load help text when screen mounts."""
+        try:
+            import os
+            help_file = os.path.join(os.path.dirname(__file__), 'help.txt')
+            with open(help_file, 'r') as f:
+                help_text = f.read().strip()
+        except Exception:
+            help_text = "1=topics 2=nodes h=help r=refresh x=exit"
+
+        help_widget = self.query_one("#help_content")
+        help_widget.update(help_text)
+
+    def on_key(self, event):
+        """Close help screen on any key press."""
+        self.dismiss()
 
 
 class DisplayManager(App):
@@ -84,6 +143,8 @@ class DisplayManager(App):
         elif event.key == "2":
             self.display_mode = "2"
             self._switch_to_mode_2_panes()
+        elif event.key == "h":
+            self._show_help()
     
     def _trigger_manual_refresh(self):
         """Trigger immediate refresh of all collectors."""
@@ -98,6 +159,10 @@ class DisplayManager(App):
         """Clear the refreshing indicator."""
         self._is_refreshing = False
         self._update_display()
+
+    def _show_help(self):
+        """Show help text in modal dialog."""
+        self.push_screen(HelpScreen())
 
     def _switch_to_mode_2_panes(self):
         """Switch to screen 2 panes (Nodes, Processes)."""
@@ -443,7 +508,7 @@ class DisplayManager(App):
 
     def _create_help_panel(self) -> str:
         """Create help panel content with keyboard shortcuts."""
-        return "Mode: 1 or 2; Refresh: r, exit: x or q"
+        return "Mode: 1 or 2; Refresh: r; Help: h; Exit: x or q"
 
     def _filter_topics_for_display(self, topics):
         """Filter topics based on configuration display settings."""

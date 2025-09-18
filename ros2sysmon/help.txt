@@ -1,0 +1,4 @@
+There are two pages of information. 
+See them by typing '1' and '2'. 
+Look at default_config.yaml for many customizations. 
+Look at README.md to see how statistics are calculated.
