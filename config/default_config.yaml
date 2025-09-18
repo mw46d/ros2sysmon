@@ -26,17 +26,23 @@ thresholds:
 
 # ROS2 specific settings
 ros:
-  critical_topics:
+  config_topics:
     - name: "/tf"
       target_frequency: 30.0
-    - name: "/tf_static"
-      target_frequency: 1.0
+      measure_hz: true
+      display: true
     - name: "/scan"
       target_frequency: 20.0
-    - name: "/camera/image_raw"
-      target_frequency: 10.0
+      measure_hz: true
+      display: true
+      display: true
     - name: "/cmd_vel"
       target_frequency: 1.0
+      measure_hz: false
+      display: true
+    - name: "*"
+      measure_hz: false
+      display: false
   
   node_patterns:
     ignore:

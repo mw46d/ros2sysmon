@@ -445,21 +445,89 @@ class DisplayManager(App):
         """Create help panel content with keyboard shortcuts."""
         return "Mode: 1 or 2; Refresh: r, exit: x or q"
 
+    def _filter_topics_for_display(self, topics):
+        """Filter topics based on configuration display settings."""
+        if not topics:
+            return []
+
+        # Get configured topics
+        config_topics = self.config.ros.config_topics
+
+        # Create lookup dictionaries for configured topics
+        configured_topic_names = {topic.name for topic in config_topics if topic.name != "*"}
+        configured_display_settings = {topic.name: topic.display for topic in config_topics if topic.name != "*"}
+
+        # Find wildcard (*) configuration
+        wildcard_config = next((topic for topic in config_topics if topic.name == "*"), None)
+        wildcard_display = wildcard_config.display if wildcard_config else True
+
+        filtered_topics = []
+
+        for topic in topics:
+            topic_name = topic.name
+
+            if topic_name in configured_topic_names:
+                # Topic is explicitly configured
+                if configured_display_settings.get(topic_name, True):
+                    filtered_topics.append(topic)
+            else:
+                # Topic not explicitly configured, use wildcard setting
+                if wildcard_display:
+                    filtered_topics.append(topic)
+
+        return filtered_topics
+
+    def _is_topic_hz_measurement_enabled(self, topic_name: str) -> bool:
+        """Determine if Hz measurement is enabled for a specific topic."""
+        # Get configured topics
+        config_topics = self.config.ros.config_topics
+
+        # Create lookup for measure_hz settings
+        configured_topic_names = {topic.name for topic in config_topics if topic.name != "*"}
+        measure_hz_settings = {topic.name: topic.measure_hz for topic in config_topics if topic.name != "*"}
+
+        # Find wildcard (*) configuration
+        wildcard_config = next((topic for topic in config_topics if topic.name == "*"), None)
+        wildcard_measure_hz = wildcard_config.measure_hz if wildcard_config else False
+
+        # Determine if Hz measurement is enabled for this topic
+        if topic_name in configured_topic_names:
+            return measure_hz_settings.get(topic_name, True)
+        else:
+            return wildcard_measure_hz
+
+    def _format_topic_frequency(self, topic_name: str, frequency_hz: float) -> str:
+        """Format frequency display based on whether Hz measurement is enabled."""
+        if self._is_topic_hz_measurement_enabled(topic_name):
+            return f"{frequency_hz:.2f}"
+        else:
+            return "--"
+
+    def _format_topic_count(self, topic_name: str, message_count: int) -> str:
+        """Format message count display based on whether Hz measurement is enabled."""
+        if self._is_topic_hz_measurement_enabled(topic_name):
+            return str(message_count)
+        else:
+            return "--"
+
     def _update_topics_table(self, topics):
         """Update the topics DataTable with current topic data."""
         try:
             topics_table = self.query_one("#topics_table")
-            
+
             # Clear existing rows
             topics_table.clear()
-            
+
             if not topics:
                 # Add a single row indicating no topics
-                topics_table.add_row("No topics", "N/A", "0.0", "0")
+                topics_table.add_row("no topics yet...", "", "", "")
                 return
-            
-            # Sort topics by frequency (highest first)
-            sorted_topics = sorted(topics, key=lambda t: t.frequency_hz, reverse=True)
+
+            # Filter topics based on display configuration
+            filtered_topics = self._filter_topics_for_display(topics)
+
+            # Sort filtered topics by frequency (highest first)
+            sorted_topics = sorted(filtered_topics, key=lambda t: t.frequency_hz, reverse=True)
             
             # Add rows for each topic
             for topic in sorted_topics:
@@ -473,14 +541,15 @@ class DisplayManager(App):
                 if len(msg_type) > 20:
                     msg_type = msg_type[:17] + "..."
                 
-                # Format frequency
-                freq_str = f"{topic.frequency_hz:.2f}"
-                
+                # Format frequency - check if Hz measurement is enabled for this topic
+                freq_str = self._format_topic_frequency(topic.name, topic.frequency_hz)
+                count_str = self._format_topic_count(topic.name, topic.message_count)
+
                 topics_table.add_row(
                     topic_name,
                     msg_type,
                     freq_str,
-                    str(topic.message_count)
+                    count_str
                 )
                 
         except Exception as e:

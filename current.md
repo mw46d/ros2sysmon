@@ -1,5 +1,13 @@
 # ROS2 System Monitor - Current State
 
+### How to use Current.md
+
+* read claude.md and obey it fully
+* read the rest of this document and make it part of your context
+* adopt the todo list as your own
+* when asked to create a new current.md, create a new file, include your current context, loose ends, todo list, and anything else.
+* Also include this section called "How To Use Current.md"
+
 ## Overview
 A Python-based system monitoring application for ROS2 environments that provides real-time display of system metrics, ROS nodes, topics, TF frames, and processes using a Textual-based terminal UI.
 
@@ -123,8 +131,37 @@ A Python-based system monitoring application for ROS2 environments that provides
 3. Complex UI rendering with multiple DataTables and CSS styling
 4. Thread-safe data copying in SharedDataStore
 
+## Python File Structure
+
+### Main Source Files (`ros2sysmon/`)
+- **`__init__.py`** - Package version definition file.
+- **`main.py`** - Main entry point that initializes ROS2, loads config, starts data collection and display managers.
+- **`run.py`** - Legacy launcher script that imports from ros2top (appears outdated).
+- **`display_manager.py`** - Textual-based terminal UI manager with two switchable screens for system monitoring display.
+- **`data_manager.py`** - Coordinates multiple data collectors with threading and manages shared data store.
+- **`shared_data.py`** - Thread-safe data store for sharing collected metrics between collectors and display.
+- **`data_models.py`** - Dataclass definitions for system metrics, alerts, ROS nodes, topics, and TF frames.
+- **`config_manager.py`** - Loads and parses YAML configuration files into config objects.
+- **`config.py`** - Main configuration dataclass that combines all config components.
+- **`keyboard_handler.py`** - Handles keyboard input for terminal-based controls and shortcuts.
+- **`textualtest.py`** - Simple test program for Textual layout with four-row design.
+
+### Configuration Files
+- **`collection_config.py`** - Dataclass for collection timing intervals configuration.
+- **`threshold_config.py`** - Dataclass for system alert thresholds (CPU, memory, disk, temperature).
+- **`topic_config.py`** - Dataclass for ROS topic configuration with target frequencies.
+- **`ros_config.py`** - Dataclass for ROS2-specific configuration including critical topics and node patterns.
+- **`display_config.py`** - Dataclass for display preferences like colors and time format.
+
+### Collectors (`collectors/`)
+- **`system_collector.py`** - Collects system metrics (CPU, memory, disk, temperature) and ROS processes.
+- **`network_collector.py`** - Monitors network latency via ping commands.
+- **`ros_collector.py`** - Discovers ROS2 nodes, topics, TF frames and measures topic frequencies.
+
+### Archive Files
+- **`display_manager_claude.py`** - Alternative Rich-based display manager implementation.
+
 ## Configuration Files
-- `collection_config.py` - Collection interval settings
 - Various YAML config files for different deployment scenarios
 
 ## Alternative Implementations

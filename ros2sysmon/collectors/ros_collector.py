@@ -228,41 +228,46 @@ class ROSCollector:
         shared_data.add_alert(alert)
     
     def _setup_topic_subscribers(self):
-        """Setup subscribers for all available topics to track frequency."""
+        """Setup subscribers for topics configured with measure_hz: true."""
         if not self.node:
             return
-            
+
         try:
             # Get all topics and their types
             topic_names_and_types = self.node.get_topic_names_and_types()
-            
+
+            # Get topics that should have Hz measured
+            topics_to_measure = self._get_topics_for_hz_measurement()
+
             for topic_name, topic_types in topic_names_and_types:
                 if topic_name not in self.subscribers and topic_types:
-                    try:
-                        # Use the first available message type
-                        topic_type = topic_types[0]
-                        self.topic_types[topic_name] = topic_type
-                        
-                        # Import and create subscriber
-                        msg_class = get_message(topic_type)
-                        
-                        # Create callback function that properly captures topic_name
-                        def make_callback(topic):
-                            return lambda msg: self._topic_callback(topic)
-                        
-                        subscriber = self.node.create_subscription(
-                            msg_class,
-                            topic_name,
-                            make_callback(topic_name),
-                            qos_profile=qos_profile_sensor_data
-                        )
-                        
-                        self.subscribers[topic_name] = subscriber
-                        
-                    except Exception:
-                        # Skip topics we can't subscribe to
-                        pass
-                        
+                    # Check if this topic should have Hz measured
+                    if self._should_measure_hz(topic_name, topics_to_measure):
+                        try:
+                            # Use the first available message type
+                            topic_type = topic_types[0]
+                            self.topic_types[topic_name] = topic_type
+
+                            # Import and create subscriber
+                            msg_class = get_message(topic_type)
+
+                            # Create callback function that properly captures topic_name
+                            def make_callback(topic):
+                                return lambda msg: self._topic_callback(topic)
+
+                            subscriber = self.node.create_subscription(
+                                msg_class,
+                                topic_name,
+                                make_callback(topic_name),
+                                qos_profile=qos_profile_sensor_data
+                            )
+
+                            self.subscribers[topic_name] = subscriber
+
+                        except Exception:
+                            # Skip topics we can't subscribe to
+                            pass
+
         except Exception:
             # ROS2 not available
             pass
@@ -270,14 +275,45 @@ class ROSCollector:
     def _topic_callback(self, topic_name: str):
         """Callback for topic messages to track frequency."""
         current_time = time.time()
-        
+
         # Only collect timestamps during active collection windows
         if self.collection_active:
             self.collection_window_timestamps[topic_name].append(current_time)
-        
+
         # Still maintain message counts for compatibility
         self.message_counts[topic_name] += 1
-    
+
+    def _get_topics_for_hz_measurement(self):
+        """Get configuration about which topics should have Hz measured."""
+        config_topics = self.config.ros.config_topics
+
+        # Create lookup dictionaries
+        configured_topic_names = {topic.name for topic in config_topics if topic.name != "*"}
+        measure_hz_settings = {topic.name: topic.measure_hz for topic in config_topics if topic.name != "*"}
+
+        # Find wildcard (*) configuration
+        wildcard_config = next((topic for topic in config_topics if topic.name == "*"), None)
+        wildcard_measure_hz = wildcard_config.measure_hz if wildcard_config else False
+
+        return {
+            'configured_topic_names': configured_topic_names,
+            'measure_hz_settings': measure_hz_settings,
+            'wildcard_measure_hz': wildcard_measure_hz
+        }
+
+    def _should_measure_hz(self, topic_name: str, topics_to_measure: dict) -> bool:
+        """Determine if Hz should be measured for a specific topic."""
+        configured_topic_names = topics_to_measure['configured_topic_names']
+        measure_hz_settings = topics_to_measure['measure_hz_settings']
+        wildcard_measure_hz = topics_to_measure['wildcard_measure_hz']
+
+        if topic_name in configured_topic_names:
+            # Topic is explicitly configured
+            return measure_hz_settings.get(topic_name, True)
+        else:
+            # Topic not explicitly configured, use wildcard setting
+            return wildcard_measure_hz
+
     def _calculate_topic_hz(self, topic_name: str) -> float:
         """Calculate Hz for a specific topic based on windowed collection."""
         if topic_name not in self.collection_window_timestamps:

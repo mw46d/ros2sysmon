@@ -7,5 +7,5 @@ from .topic_config import TopicConfig
 @dataclass
 class ROSConfig:
     """ROS2 specific configuration."""
-    critical_topics: List[TopicConfig]
+    config_topics: List[TopicConfig]
     node_patterns: Dict[str, List[str]]

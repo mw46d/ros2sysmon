@@ -24,9 +24,9 @@ class ConfigManager:
         thresholds = ThresholdConfig(**config_data['thresholds'])
         
         # Parse ROS config
-        topics = [TopicConfig(**topic) for topic in config_data['ros']['critical_topics']]
+        topics = [TopicConfig(**topic) for topic in config_data['ros']['config_topics']]
         ros_config = ROSConfig(
-            critical_topics=topics,
+            config_topics=topics,
             node_patterns=config_data['ros']['node_patterns']
         )
         
