@@ -54,3 +54,7 @@ display:
   show_colors: true
   show_progress_bars: true
   time_format: "%H:%M:%S"
+  panel_layout:
+    screen_1: ["topics", "tfs"]
+    screen_2: ["nodes", "processes"]
+    hidden: []

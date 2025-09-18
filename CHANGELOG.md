@@ -1,8 +1,10 @@
 # Changelog
 
+
 ## [0.2.0] - 2025-09-18
 
 ### Added
+- Configurable panel layout system with array-based YAML configuration
 - Modal help dialog with "h" key command
 - External help text file (help.txt) for easy editing
 - Centralized version management system

@@ -6,6 +6,7 @@ from .topic_config import TopicConfig
 from .ros_config import ROSConfig
 from .display_config import DisplayConfig
 from .collection_config import CollectionConfig
+from .panel_layout_config import PanelLayoutConfig
 
 
 class ConfigManager:
@@ -31,7 +32,19 @@ class ConfigManager:
         )
         
         # Parse display config
-        display = DisplayConfig(**config_data['display'])
+        display_data = config_data['display']
+
+        # Parse panel layout (with fallback to defaults)
+        panel_layout_data = display_data.get('panel_layout', {})
+        panel_layout = PanelLayoutConfig(**panel_layout_data)
+
+        # Create display config
+        display = DisplayConfig(
+            show_colors=display_data['show_colors'],
+            show_progress_bars=display_data['show_progress_bars'],
+            time_format=display_data['time_format'],
+            panel_layout=panel_layout
+        )
         
         # Create main config
         return Config(

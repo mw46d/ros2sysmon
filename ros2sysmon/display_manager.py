@@ -84,30 +84,63 @@ class DisplayManager(App):
         self.display_mode = "1"
 
     def compose(self):
-        """Create the layout structure."""
+        """Create the layout structure dynamically based on configuration."""
         with Vertical():
             yield Static("Loading system metrics...", id="header", markup = False)
-            
-            # Screen 1 container (default visible) - Horizontal layout for Topics and TF Frames
-            with Horizontal(id="mode1_container", classes="body"):
-                topics_table = DataTable(id="topics_table")
-                topics_table.add_columns("Topic", "Type", "Hz", "Count")
-                yield topics_table
-                tf_table = DataTable(id="tf_table")
-                tf_table.add_columns("Frame", "Parent", "Recent")
-                yield tf_table
-            
-            # Screen 2 container (initially hidden) - Horizontal layout for Nodes and Processes
-            with Horizontal(id="mode2_container", classes="body hidden"):
-                nodes_table = DataTable(id="nodes_table")
-                nodes_table.add_columns("Node Name")
-                yield nodes_table
-                processes_table = DataTable(id="processes_table")
-                processes_table.add_columns("PID", "Process", "CPU%", "Mem%")
-                yield processes_table
-            
+
+            # Create screen containers dynamically
+            yield from self._create_screen_containers()
+
             yield Static("No alerts", id="alerts")
             yield Static(self._create_help_panel(), id="help")
+
+    def _create_screen_containers(self):
+        """Create screen containers with panels based on configuration."""
+        layout_config = self.config.display.panel_layout
+
+        # Create screen 1 container
+        screen_1_panels = layout_config.get_panels_for_screen(1)
+        if screen_1_panels:
+            with Horizontal(id="mode1_container", classes="body"):
+                for panel_name in screen_1_panels:
+                    yield self._create_panel_widget(panel_name)
+        else:
+            # Empty screen with placeholder
+            with Horizontal(id="mode1_container", classes="body"):
+                yield Static("Screen 1 - No panels configured", id="screen1_empty")
+
+        # Create screen 2 container
+        screen_2_panels = layout_config.get_panels_for_screen(2)
+        if screen_2_panels:
+            with Horizontal(id="mode2_container", classes="body hidden"):
+                for panel_name in screen_2_panels:
+                    yield self._create_panel_widget(panel_name)
+        else:
+            # Empty screen with placeholder
+            with Horizontal(id="mode2_container", classes="body hidden"):
+                yield Static("Screen 2 - No panels configured", id="screen2_empty")
+
+    def _create_panel_widget(self, panel_name: str):
+        """Create a panel widget based on panel name."""
+        if panel_name == "topics":
+            topics_table = DataTable(id="topics_table")
+            topics_table.add_columns("Topic", "Type", "Hz", "Count")
+            return topics_table
+        elif panel_name == "tfs":
+            tf_table = DataTable(id="tf_table")
+            tf_table.add_columns("Frame", "Parent", "Recent")
+            return tf_table
+        elif panel_name == "nodes":
+            nodes_table = DataTable(id="nodes_table")
+            nodes_table.add_columns("Node Name")
+            return nodes_table
+        elif panel_name == "processes":
+            processes_table = DataTable(id="processes_table")
+            processes_table.add_columns("PID", "Process", "CPU%", "Mem%")
+            return processes_table
+        else:
+            # Fallback for unknown panel names
+            return Static(f"Unknown panel: {panel_name}", id=f"{panel_name}_unknown")
 
     def run_display(self, shared_data: SharedDataStore, data_manager=None):
         """Run the main display with data polling loop."""
@@ -329,7 +362,12 @@ class DisplayManager(App):
     def _update_nodes_table(self, nodes):
         """Update the nodes DataTable with current ROS node data."""
         try:
-            nodes_table = self.query_one("#nodes_table")
+            nodes_table = self.query_one("#nodes_table", expect_type=DataTable)
+        except Exception:
+            # Nodes table not present (hidden panel)
+            return
+
+        try:
             
             # Clear existing rows
             nodes_table.clear()
@@ -363,7 +401,12 @@ class DisplayManager(App):
     def _update_tf_table(self, tf_frames):
         """Update the TF frames DataTable with current transform data."""
         try:
-            tf_table = self.query_one("#tf_table")
+            tf_table = self.query_one("#tf_table", expect_type=DataTable)
+        except Exception:
+            # TF table not present (hidden panel)
+            return
+
+        try:
             
             # Clear existing rows
             tf_table.clear()
@@ -416,7 +459,12 @@ class DisplayManager(App):
     def _update_processes_table(self, processes):
         """Update the processes DataTable with current process data."""
         try:
-            processes_table = self.query_one("#processes_table")
+            processes_table = self.query_one("#processes_table", expect_type=DataTable)
+        except Exception:
+            # Processes table not present (hidden panel)
+            return
+
+        try:
             
             # Clear existing rows
             processes_table.clear()
@@ -578,7 +626,12 @@ class DisplayManager(App):
     def _update_topics_table(self, topics):
         """Update the topics DataTable with current topic data."""
         try:
-            topics_table = self.query_one("#topics_table")
+            topics_table = self.query_one("#topics_table", expect_type=DataTable)
+        except Exception:
+            # Topics table not present (hidden panel)
+            return
+
+        try:
 
             # Clear existing rows
             topics_table.clear()
