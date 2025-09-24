@@ -13,7 +13,7 @@
     * use python latest and ros2 compliant package management and building with colcon
     * prefer async/await over threading when there is a choice
     * avoid if/else statements that are nested more than 1 deep
-    * avoid 1 line methods
+    * avoid 2 line methods
     * look for code duplication and make the code DRY if it makes sense
     * When undertaking a multi step implemenation or refactoring, do it in a way that after each step we retain a running program so that I can test it to make sure we are on the right track.
     * Don't assign the result of a function to a variable just to use that variable one time only, Just use the function call.
@@ -21,6 +21,8 @@
     * Avoid 1 line functions and methods
     * Put a comment with each method or function ONLY if the name of the function is not sufficient by itself.
     * Almost always use double quotes. Only use single quotes if there is a specific requirement to do so
+    * Never have bare except Exception: Be specific, and also put something in the alert box
+    
     
 
 # CURRENT.md

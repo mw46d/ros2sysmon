@@ -6,9 +6,9 @@ max_topics_display: 10
 
 # Collection intervals - one-shot with manual refresh
 collection_intervals:
-  system_metrics: 5.0      # Regular system monitoring
-  network_ping: 5.0        # One-shot network check (use 'r' to refresh)
-  ros_discovery: 10.0       # One-shot ROS discovery (use 'r' to refresh)
+  system_metrics: 10.0      # Regular system monitoring
+  network_ping: 10.0        # One-shot network check (use 'r' to refresh)
+  ros_discovery: 30.0       # One-shot ROS discovery (use 'r' to refresh)
   hz_collection_duration: 5.0  # Duration to collect Hz data when refreshed
 
 # System thresholds
@@ -38,6 +38,12 @@ ros:
     - name: "/cmd_vel"
       target_frequency: 1.0
       measure_hz: false
+      display: true
+    - name: "/map"
+      measure_hz: true
+      display: true
+    - name: "/odom"
+      measure_hz: true
       display: true
     - name: "*"
       measure_hz: false

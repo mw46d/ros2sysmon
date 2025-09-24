@@ -139,7 +139,8 @@ class SystemCollector:
             ros_processes = []
             ros_keywords = [
                 "ros2", "rviz", "gazebo", "navigation", "moveit", "rqt",
-                "robot_state", "joint_state", "launch", "python3"
+                "robot_state", "joint_state", "launch", "python3",
+                "map_server", "nav2", "slam"
             ]
             
             for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'cpu_percent', 'memory_percent']):
@@ -173,5 +174,5 @@ class SystemCollector:
                     
             return ros_processes
             
-        except Exception:
+        except (OSError, PermissionError):
             return []

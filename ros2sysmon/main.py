@@ -21,8 +21,6 @@ def main():
     parser.add_argument("--no-color", action="store_true")
     args = parser.parse_args()
     
-    print("ros2sysmon starting...")
-    print(f"Using config: {args.config}")
     
     # Initialize ROS2 
     rclpy.init()

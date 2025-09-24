@@ -5,7 +5,7 @@ import signal
 from datetime import datetime
 from textual.app import App
 from textual.containers import Vertical, Horizontal
-from textual.widgets import Static, DataTable
+from textual.widgets import Static, DataTable, RichLog
 from textual.screen import ModalScreen
 from typing import List, Optional
 from .shared_data import SharedDataStore
@@ -60,7 +60,7 @@ class HelpScreen(ModalScreen):
             help_file = os.path.join(os.path.dirname(__file__), 'help.txt')
             with open(help_file, 'r') as f:
                 help_text = f.read().strip()
-        except Exception:
+        except (FileNotFoundError, OSError):
             help_text = "1=topics 2=nodes h=help r=refresh x=exit"
 
         help_widget = self.query_one("#help_content")
@@ -91,7 +91,7 @@ class DisplayManager(App):
             # Create screen containers dynamically
             yield from self._create_screen_containers()
 
-            yield Static("No alerts", id="alerts")
+            yield RichLog(id="alerts")
             yield Static(self._create_help_panel(), id="help")
 
     def _create_screen_containers(self):
@@ -363,8 +363,7 @@ class DisplayManager(App):
         """Update the nodes DataTable with current ROS node data."""
         try:
             nodes_table = self.query_one("#nodes_table", expect_type=DataTable)
-        except Exception:
-            # Nodes table not present (hidden panel)
+        except (LookupError, AttributeError):
             return
 
         try:
@@ -402,8 +401,7 @@ class DisplayManager(App):
         """Update the TF frames DataTable with current transform data."""
         try:
             tf_table = self.query_one("#tf_table", expect_type=DataTable)
-        except Exception:
-            # TF table not present (hidden panel)
+        except (LookupError, AttributeError):
             return
 
         try:
@@ -477,12 +475,12 @@ class DisplayManager(App):
                 processes_table.add_row("N/A", "No ROS processes", "0.0", "0.0")
                 return
             
-            # Sort by CPU usage (highest first) and take top 15 processes
+            # Sort by CPU usage (highest first) and show all processes
             top_processes = sorted(
-                ros_processes, 
-                key=lambda p: p['cpu_percent'], 
+                ros_processes,
+                key=lambda p: p['cpu_percent'],
                 reverse=True
-            )[:15]
+            )
             
             # Add rows for each process
             for proc in top_processes:
@@ -515,38 +513,31 @@ class DisplayManager(App):
 
     def _update_alerts_panel(self, alerts):
         """Update the alerts panel."""
-        alerts_widget = self.query_one("#alerts")
-        content = self._create_alerts_panel(alerts)
-        alerts_widget.update(content)
+        alerts_widget = self.query_one("#alerts", expect_type=RichLog)
 
-    def _create_alerts_panel(self, alerts: List[SystemAlert]) -> str:
-        """Create the alerts panel content."""
+        # Clear existing content
+        alerts_widget.clear()
+
         if not alerts:
-            return "No alerts"
+            alerts_widget.write("No alerts")
+            return
 
-        # Show last few alerts (fit within panel height - doubled from 6 to 12)
-        recent_alerts = list(alerts)[-9:]
-        alert_lines = []
+        # Show recent alerts (last 50)
+        recent_alerts = list(alerts)[-50:]
 
         for alert in recent_alerts:
             # Format time and message
             time_str = alert.timestamp.strftime("%H:%M:%S")
             level_indicator = {
-                "ERROR": "ERR", 
-                "WARN": "WRN", 
-                "INFO": "INF"
+                "ERROR": "[red]ERR[/red]",
+                "WARN": "[yellow]WRN[/yellow]",
+                "INFO": "[blue]INF[/blue]"
             }.get(alert.level, alert.level)
-            
-            # Create alert line with more reasonable length
-            alert_line = f"[{level_indicator}] {time_str} - {alert.message}"
-            
-            # Truncate if too long (increased from 50 to 120 characters)
-            if len(alert_line) > 120:
-                alert_line = alert_line[:117] + "..."
-                
-            alert_lines.append(alert_line)
-        
-        return "\n".join(alert_lines)
+
+            # Create rich formatted alert line
+            alert_line = f"{level_indicator} {time_str} - {alert.message}"
+            alerts_widget.write(alert_line)
+
 
     def _update_help_panel(self):
         """Update the help panel."""
