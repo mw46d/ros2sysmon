@@ -8,7 +8,6 @@ A terminal-based system monitor for ROS2 environments with real-time system metr
 * Verified to work on Ubuntu 24.04 with ROS2 Jazzy
 * Requires separate installation of python library textual
 
-
 ![ROS2 System Monitor Screenshot](screenshot.png)
 ## Installation
 
@@ -18,7 +17,7 @@ A terminal-based system monitor for ROS2 environments with real-time system metr
 - Python library textual
 
 ### Installing textual
-You may find that `pip install textual` gives an error `error: externally-managed-environment`. You can work around this with `pip install textual --break-system-packages`. Note: This bypasses Python environment isolation - use with caution.
+You may find that doing any pip install gives an error `error: externally-managed-environment`. In our case it happened with `pip install textual`. You can work around this with `pip install textual --break-system-packages`. Note: This bypasses Python environment isolation - use with caution.
 
 ### Installing ros2sysmon
 

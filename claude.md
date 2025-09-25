@@ -30,6 +30,5 @@
     * You shall undertake multi-step implementation or refactoring in a way that after each step a running program is retained so that testing can be done to ensure progress is on the right track
     
     
-
 # CURRENT.md
     * Now read CURRENT.md and follow it's instructions
