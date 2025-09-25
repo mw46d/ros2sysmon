@@ -76,24 +76,95 @@ System alerts with timestamps for threshold violations.
 ## Metric Calculations
 
 ### System Metrics
-- **CPU**: `psutil.cpu_percent(interval=0.1)` - 100ms sampling
-- **Memory**: `psutil.virtual_memory().percent` - available vs total
-- **Disk**: `psutil.disk_usage('/').percent` - root filesystem usage
-- **Temperature**: `psutil.sensors_temperatures()` - from `coretemp`/`cpu_thermal`
-- **Load Average**: `psutil.getloadavg()[0]` - 1-minute load
-- **Uptime**: `time.time() - psutil.boot_time()` formatted as HH:MM
-- **Network Latency**: `ping -c 1 -W 2 8.8.8.8` parsed from output
+
+#### CPU Usage
+- **Method**: `psutil.cpu_percent(interval=0.1)`
+- **Calculation**: Average CPU utilization over 100ms sampling period
+- **Range**: 0-100% (can exceed 100% on multi-core systems)
+- **Display**: Progress bar with percentage, color-coded by thresholds
+
+#### Memory Usage
+- **Method**: `psutil.virtual_memory().percent`
+- **Calculation**: `(total - available) / total * 100`
+- **Includes**: RAM usage excluding buffers/cache
+- **Display**: Progress bar with percentage and absolute values (used/total GB)
+
+#### Disk Usage
+- **Method**: `psutil.disk_usage('/').percent`
+- **Target**: Root filesystem (`/`) usage
+- **Calculation**: `used_space / total_space * 100`
+- **Display**: Progress bar with percentage and absolute values
+
+#### Temperature
+- **Method**: `psutil.sensors_temperatures()`
+- **Sources**: `coretemp` (Intel) or `cpu_thermal` (ARM/embedded)
+- **Fallback**: Shows `--` if no temperature sensors available
+- **Units**: Celsius (°C)
+
+#### Load Average
+- **Method**: `psutil.getloadavg()`
+- **Values**: 1-minute, 5-minute, 15-minute averages
+- **Meaning**: Average number of processes waiting for CPU/I/O
+- **Interpretation**: Values > CPU core count indicate system stress
+
+#### Uptime
+- **Method**: `time.time() - psutil.boot_time()`
+- **Calculation**: Current time minus system boot timestamp
+- **Format**: `HH:MM` (hours:minutes since boot)
+
+#### Battery Level
+- **Method**: `psutil.sensors_battery()`
+- **Availability**: Only on battery-powered systems
+- **Display**: Percentage or `--` if no battery detected
+
+#### Network Latency
+- **Method**: `ping -c 1 -W 2 8.8.8.8` subprocess call
+- **Target**: Google DNS (8.8.8.8) for internet connectivity
+- **Timeout**: 2 second wait, 3 second total timeout
+- **Parsing**: Extracts `time=X.XXXms` from ping output
+- **Fallback**: Shows `--` if network unavailable or ping fails
 
 ### ROS Metrics
-- **Nodes**: Discovered via `ros2 node list` (10s timeout)
-- **Topics**: Discovered via `ros2 topic list -t` (5s timeout)
-- **Topic Hz**:
-  - Creates ROS2 subscribers only for topics with `measure_hz: true`
-  - Collects message timestamps during windowed collection (default 3s)
-  - Calculates frequency as: `message_count / collection_window_duration`
-  - Shows 2 decimal precision or "--" when measurement disabled
-- **TF Frames**: Retrieved via `tf2_ros.Buffer.all_frames_as_yaml()`
-- **Processes**: Filters system processes for ROS-related keywords
+
+#### Node Discovery
+- **Method**: `ros2 node list` CLI command with subprocess
+- **Timeout**: 10 second timeout to prevent hanging
+- **Filtering**: Excludes nodes matching `node_patterns.ignore` patterns
+- **Information**: Node name, namespace, status based on process detection
+
+#### Topic Discovery
+- **Method**: `ros2 topic list -t` CLI command for topics with types
+- **Timeout**: 5 second timeout
+- **Processing**: Parses topic names and message types
+- **Filtering**: Only configured topics shown based on `display: true`
+
+#### Topic Hz Measurement
+- **Subscription**: Creates ROS2 subscribers only for `measure_hz: true` topics
+- **Collection Window**: Configurable duration (default 5.0s via `hz_collection_duration`)
+- **Message Counting**: Timestamps collected during active measurement window
+- **Calculation**: `message_count / collection_window_duration`
+- **Precision**: 2 decimal places (e.g., "26.73 Hz")
+- **Inactive Display**: Shows "--" when `measure_hz: false`
+- **Error Handling**: Shows "0.00" if no messages received during window
+
+#### Topic Message Count
+- **Method**: Accumulated message count during Hz measurement window
+- **Reset**: Counter resets at start of each measurement cycle
+- **Display**: Integer count or "--" when measurement disabled
+- **Relationship**: Used with time window to calculate Hz
+
+#### TF Frame Discovery
+- **Method**: `tf2_ros.Buffer.all_frames_as_yaml()`
+- **Processing**: Parses YAML output to extract frame relationships
+- **Information**: Frame ID, parent frame, transform timestamps
+- **Root Detection**: Identifies frames without parents as root frames
+
+#### Process Detection
+- **Method**: `psutil.process_iter()` with keyword filtering
+- **Keywords**: `["ros2", "rviz", "gazebo", "navigation", "moveit", "rqt", "robot_state", "joint_state", "launch", "python3", "map_server", "nav2", "slam"]`
+- **Matching**: Checks process name and command line arguments
+- **Metrics**: PID, name, CPU percentage (0.01s interval), memory percentage
+- **Display**: Filtered list of ROS-related processes only
 
 ### Target Frequencies (for alerts)
 - `/cmd_vel`, `/twist`: 10Hz
