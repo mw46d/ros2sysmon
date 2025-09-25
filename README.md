@@ -105,38 +105,83 @@ System alerts with timestamps for threshold violations.
 
 ## Configuration
 
-Default config: `share/ros2sysmon/config/default_config.yaml`
+Default config: `config/default_config.yaml`
 
-### Topic Configuration
-Topics are now configured via `config_topics` with granular control:
+### Complete YAML Configuration Structure
 ```yaml
+# Display settings
+refresh_rate: 5.0           # Display update rate (seconds)
+max_alerts: 10              # Maximum alerts to display
+max_nodes_display: 15       # Maximum ROS nodes to show
+max_topics_display: 10      # Maximum topics to show
+
+# Collection intervals (seconds)
+collection_intervals:
+  system_metrics: 10.0      # CPU, memory, disk, temperature
+  network_ping: 10.0        # Network latency checks
+  ros_discovery: 30.0       # ROS node/topic discovery
+  hz_collection_duration: 5.0  # Hz measurement window duration
+
+# System alert thresholds
+thresholds:
+  cpu_warn: 70.0           # CPU usage warning (%)
+  cpu_error: 85.0          # CPU usage error (%)
+  memory_warn: 75.0        # Memory usage warning (%)
+  memory_error: 90.0       # Memory usage error (%)
+  disk_warn: 80.0          # Disk usage warning (%)
+  disk_error: 95.0         # Disk usage error (%)
+  temperature_warn: 70.0   # Temperature warning (°C)
+  temperature_error: 85.0  # Temperature error (°C)
+  network_latency_warn: 100    # Network latency warning (ms)
+  network_latency_error: 500   # Network latency error (ms)
+
+# ROS2 specific configuration
 ros:
+  # Topic-specific settings with granular control
   config_topics:
     - name: "/tf"
-      target_frequency: 30.0
+      target_frequency: 30.0  # Expected Hz for alerts
+      measure_hz: true        # Enable Hz measurement
+      display: true           # Show in topic list
+    - name: "/scan"
+      target_frequency: 20.0
       measure_hz: true
       display: true
     - name: "/cmd_vel"
       target_frequency: 1.0
-      measure_hz: false
+      measure_hz: false       # Disable Hz measurement
       display: true
-    - name: "*"           # Wildcard for all other topics
-      measure_hz: false
-      display: false
+    - name: "/map"
+      measure_hz: true        # No target_frequency = no alerts
+      display: true
+    - name: "/odom"
+      measure_hz: true
+      display: true
+
+  # Node filtering patterns
+  node_patterns:
+    ignore:
+      - "/_ros2cli_*"         # Ignore CLI nodes
+      - "/launch_ros_*"       # Ignore launch nodes
+
+# Display preferences
+display:
+  show_colors: true           # Enable colored output
+  show_progress_bars: true    # Show ASCII progress bars
+  time_format: "%H:%M:%S"     # Timestamp format
+  panel_layout:
+    screen_1: ["topics", "tfs"]      # Screen 1 layout
+    screen_2: ["nodes", "processes"] # Screen 2 layout
+    hidden: []                       # Hidden panels
 ```
 
-### Collection Intervals
-- **system_metrics**: 5.0s - CPU, memory, disk, temperature
-- **network_ping**: 5.0s - Network latency checks
-- **ros_discovery**: 10.0s - Node/topic discovery
-- **hz_collection_duration**: 3.0s - Hz measurement window
-
-### Alert Thresholds
-- **CPU**: Warn 70%, Error 85%
-- **Memory**: Warn 75%, Error 90%
-- **Disk**: Warn 80%, Error 95%  
-- **Temperature**: Warn 70°C, Error 85°C
-- **Network**: Warn 100ms, Error 500ms
+### Topic Configuration Details
+- **name**: Topic name or "*" wildcard for unconfigured topics
+- **target_frequency**: Expected Hz for alert generation (optional)
+- **measure_hz**: Enable/disable Hz measurement (`true`/`false`)
+- **display**: Show topic in display (`true`/`false`)
+- Topics without `measure_hz: true` show "--" for Hz and count
+- Use manual refresh (`r` key) to update Hz measurements
 
 ## Architecture
 
