@@ -26,6 +26,12 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}/config/
 )
 
+# Install CSS files
+install(FILES
+  ros2sysmon/ui/sysmon.tcss
+  DESTINATION lib/python3.12/site-packages/${PROJECT_NAME}/ui/
+)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   set(ament_cmake_copyright_FOUND TRUE)

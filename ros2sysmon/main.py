@@ -5,9 +5,9 @@ import os
 import threading
 import rclpy
 from ament_index_python.packages import get_package_share_directory
-from .config_manager import ConfigManager
-from .data_manager import DataCollectionManager
-from .display_manager import DisplayManager
+from .config.config_manager import ConfigManager
+from .core.data_manager import DataCollectionManager
+from .ui.display_manager import DisplayManager
 
 
 def main():

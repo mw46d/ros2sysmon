@@ -5,9 +5,9 @@ import subprocess
 import re
 from datetime import datetime
 from typing import Optional
-from ..data_models import SystemAlert
-from ..shared_data import SharedDataStore
-from ..config import Config
+from ..core.alerts import SystemAlert
+from ..core.shared_data import SharedDataStore
+from ..config.config import Config
 
 
 class NetworkCollector:

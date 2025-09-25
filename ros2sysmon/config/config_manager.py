@@ -14,14 +14,14 @@ class ConfigManager:
     
     @staticmethod
     def load_config(config_path: str) -> Config:
-        """Load configuration from YAML file - let it crash if bad."""
+        """Load configuration from YAML file with validation and defaults."""
         with open(config_path, 'r') as f:
             config_data = yaml.safe_load(f)
-        
-        # Parse collection intervals
+
+        # Parse collection intervals (validation happens in __post_init__)
         collection_intervals = CollectionConfig(**config_data['collection_intervals'])
-        
-        # Parse thresholds
+
+        # Parse thresholds (validation happens in __post_init__)
         thresholds = ThresholdConfig(**config_data['thresholds'])
         
         # Parse ROS config
@@ -46,7 +46,7 @@ class ConfigManager:
             panel_layout=panel_layout
         )
         
-        # Create main config
+        # Create main config (validation happens in __post_init__)
         return Config(
             refresh_rate=config_data['refresh_rate'],
             max_alerts=config_data['max_alerts'],

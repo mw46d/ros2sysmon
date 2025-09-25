@@ -4,9 +4,10 @@ import threading
 import psutil
 from datetime import datetime
 from typing import Optional
-from ..data_models import SystemMetrics, SystemAlert
-from ..shared_data import SharedDataStore
-from ..config import Config
+from .system_models import SystemMetrics
+from ..core.alerts import SystemAlert
+from ..core.shared_data import SharedDataStore
+from ..config.config import Config
 
 
 class SystemCollector:

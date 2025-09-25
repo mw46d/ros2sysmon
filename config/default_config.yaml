@@ -45,9 +45,6 @@ ros:
     - name: "/odom"
       measure_hz: true
       display: true
-    - name: "*"
-      measure_hz: false
-      display: false
   
   node_patterns:
     ignore:

@@ -17,3 +17,14 @@ class Config:
     thresholds: ThresholdConfig
     ros: ROSConfig
     display: DisplayConfig
+
+    def __post_init__(self):
+        """Fix invalid values."""
+        if self.refresh_rate <= 0:
+            self.refresh_rate = 15.0
+        if self.max_alerts <= 0:
+            self.max_alerts = 15
+        if self.max_nodes_display <= 0:
+            self.max_nodes_display = 15
+        if self.max_topics_display <= 0:
+            self.max_topics_display = 15
