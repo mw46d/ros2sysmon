@@ -17,6 +17,7 @@ ament_python_install_package(${PROJECT_NAME})
 install(PROGRAMS
   scripts/ros2sysmon
   scripts/run
+  ros2sysmon/ros2_tf_diag.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

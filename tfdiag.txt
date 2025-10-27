@@ -1,0 +1,149 @@
+
+
+╔════════════════════════════════════════════════════════════════════╗
+║         ROS2 TF Timing Diagnostics Tool                           ║
+╚════════════════════════════════════════════════════════════════════╝
+
+
+This tool diagnoses transform (TF) timing issues that cause navigation problems.
+It will:
+  1. Identify which nodes publish transforms
+  2. Measure how fast key topics are updating
+  3. Check transform update rates in the TF tree
+  4. Auto-detect your base frame (base_link or base_footprint)
+  5. Test the critical odom→base transform
+  6. Verify EKF configuration
+Total time: ~20-25 seconds
+
+
+Checking TF Publishers...
+Why: /tf is the central topic for all coordinate transforms in ROS2.
+     We need to identify which nodes are publishing transforms.
+
+Measuring Topic Rates...
+Why: Topic rates affect transform update frequency.
+     Sensor data must arrive fast enough for smooth robot control (30+ Hz ideal).
+  Detecting available topics...
+  Found 4 key topics to measure
+  Measuring /tf (waiting 3s)... 18.49 Hz
+  Measuring /odom (waiting 3s)... 8.95 Hz
+  Measuring /imu/corrected_data (waiting 3s)... 42.46 Hz
+  Measuring /scan (waiting 3s)... 10.00 Hz
+
+Collecting TF tree data...
+This gathers all transform rates and publishers in one pass.
+
+Getting TF Tree data (via view_frames)...
+Why: This shows update rates for all transforms in the TF tree.
+     Helps identify which transforms are updating too slowly.
+  No transform data collected
+
+Detecting base frame...
+  Detected: base_link
+
+Getting transform rate for: odom → base_link
+  Transform not found in TF tree
+
+Testing odom → base_link transform...
+Why: The odom→base_link transform is critical for navigation.
+     It needs to update at 20+ Hz for smooth robot control.
+  Measuring for 5s... Done
+  Measured rate: 1.01 Hz (TOO SLOW)
+
+Checking EKF Configuration...
+Why: The EKF (Extended Kalman Filter) fuses sensor data to estimate robot pose.
+     Its configuration directly affects the odom→base_link transform rate.
+  frequency: 50.0
+  publish_tf: True
+  odom_frame: odom
+  base_link_frame: base_footprint
+  imu0: imu/corrected_data
+  odom0: odom/unfiltered
+
+================================================================================
+DIAGNOSTIC SUMMARY
+================================================================================
+
+TF PUBLISHERS:
+  (These nodes broadcast coordinate frame transforms)
+  • madgwick_filter_node
+  • ekf_filter_node
+  • robot_state_publisher
+  • transform_listener_impl_c59fde242540
+  • transform_listener_impl_aaaab2fb4140
+
+TOPIC PUBLISHING RATES:
+  (Target: 30+ Hz for good performance, 20+ Hz minimum)
+  /tf                            18.5 Hz ⚠
+  /odom                          8.9 Hz ✗
+  /imu/corrected_data            42.5 Hz ✓
+  /scan                          10.0 Hz ✗
+
+CRITICAL TRANSFORM (ODOM → BASE_LINK):
+  (This transform is essential for navigation - it tells Nav2 where the robot is)
+  Published by: ekf_filter_node (inferred from /tf publishers)
+  Publishing Rate:    *** TRANSFORM NOT PUBLISHED - NAVIGATION IMPOSSIBLE ***
+
+  TROUBLESHOOTING:
+  Expected publisher: ekf_filter_node
+  → Check if the 'ekf_filter_node' node is running
+  → Check if it's configured to publish this transform
+
+  Nodes currently publishing to /tf:
+    - madgwick_filter_node
+    - ekf_filter_node
+    - robot_state_publisher
+    - transform_listener_impl_c59fde242540
+    - transform_listener_impl_aaaab2fb4140
+  tf2_echo check:     1.0 Hz (may be low if robot stationary)
+
+EKF CONFIGURATION:
+  frequency            50.0
+  publish_tf           True
+  odom_frame           odom
+  base_link_frame      base_footprint
+  imu0                 imu/corrected_data
+  odom0                odom/unfiltered
+
+================================================================================
+RECOMMENDATIONS
+================================================================================
+
+Analyzing collected data to identify issues...
+
+CRITICAL Issue 1:
+  Problem: odom → base_link transform is NOT being published!
+  Why this matters: Without this transform, Nav2 has no idea where the robot is. Navigation is completely broken. This is not a performance issue - the transform simply doesn't exist.
+  How to fix: Start the EKF filter node or the node responsible for publishing this transform. Check: 1) Is ekf_filter_node running? 2) Is publish_tf=true? 3) Are frame names correct?
+
+WARNING Issue 2:
+  Problem: /tf publishing at only 18.5 Hz
+  Why this matters: Sensor data from /tf feeds into the EKF filter. Low input rates limit the EKF output rate, affecting transform quality.
+  How to fix: Consider increasing the rate of this topic to 30+ Hz
+
+WARNING Issue 3:
+  Problem: /odom publishing at only 8.9 Hz
+  Why this matters: Sensor data from /odom feeds into the EKF filter. Low input rates limit the EKF output rate, affecting transform quality.
+  How to fix: Consider increasing the rate of this topic to 30+ Hz
+
+WARNING Issue 4:
+  Problem: /scan publishing at only 10.0 Hz
+  Why this matters: Sensor data from /scan feeds into the EKF filter. Low input rates limit the EKF output rate, affecting transform quality.
+  How to fix: Consider increasing the rate of this topic to 30+ Hz
+
+
+Diagnostics complete!
+
+UNDERSTANDING THE RESULTS:
+• Green (✓): Everything is working well
+• Yellow (⚠): Performance could be improved
+• Red (✗): Critical issue - must be fixed for navigation to work
+
+╔══════════════════════════════════════════════════════════════════╗
+║  CRITICAL: Navigation cannot work without odom→base_link!       ║
+║  Fix this before attempting to navigate.                        ║
+╚══════════════════════════════════════════════════════════════════╝
+
+For more help, check the ROS2 Navigation documentation at:
+https://navigation.ros.org
+
